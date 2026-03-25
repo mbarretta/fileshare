@@ -9,7 +9,7 @@ import { computeMD5AndStream } from '@/lib/md5';
 import { streamToGCS, deleteFromGCS, renameInGCS } from '@/lib/gcs';
 import { insertFile, getFileByMd5, getDb } from '@/lib/db';
 import { generateToken, hashToken } from '@/lib/token';
-import { parseExpiresAt } from '@/lib/expiry';
+import { parseExpiresAt, parseExpiresIn } from '@/lib/expiry';
 import { auth } from '@/auth';
 
 /** Map common MIME types to extensions when filename has none. */
@@ -136,7 +136,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // Update the token_hash for the existing record
       // (re-use the existing record's expiry; caller may not have sent expires_at)
-      const expiresAtTs = fieldValues['expires_at'] ? parseExpiresAt(fieldValues['expires_at']) : existing.expires_at;
+      const expiresAtTs = fieldValues['expires_in']
+        ? parseExpiresIn(fieldValues['expires_in'])
+        : fieldValues['expires_at']
+          ? parseExpiresAt(fieldValues['expires_at'])
+          : existing.expires_at;
 
       phase = 'db-insert';
       getDb().prepare('UPDATE files SET token_hash = ?, expires_at = ? WHERE id = ?').run(
@@ -160,7 +164,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     tempGCSKey = null; // successfully renamed; finalGCSKey is now the live object
 
     // Parse expires_at into a Unix timestamp (null = no expiry)
-    const expiresAtTs = fieldValues['expires_at'] ? parseExpiresAt(fieldValues['expires_at']) : null;
+    const expiresAtTs = fieldValues['expires_in']
+      ? parseExpiresIn(fieldValues['expires_in'])
+      : fieldValues['expires_at']
+        ? parseExpiresAt(fieldValues['expires_at'])
+        : null;
 
     // Generate a one-time download token
     const token = generateToken();
