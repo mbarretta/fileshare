@@ -10,7 +10,8 @@ interface UploadResult {
 
 export default function UploadForm() {
   const [file, setFile] = useState<File | null>(null);
-  const [expiresAt, setExpiresAt] = useState<string>('');
+  const [expireCount, setExpireCount] = useState<string>('');
+  const [expireUnit, setExpireUnit] = useState<'h' | 'd'>('d');
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,8 +30,8 @@ export default function UploadForm() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      if (expiresAt) {
-        formData.append('expires_at', new Date(expiresAt).toISOString());
+      if (expireCount) {
+        formData.append('expires_in', `${expireCount}${expireUnit}`);
       }
 
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
@@ -42,7 +43,7 @@ export default function UploadForm() {
         setResult(json as UploadResult);
         // Reset form
         setFile(null);
-        setExpiresAt('');
+        setExpireCount('');
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
     } catch (err) {
@@ -149,19 +150,28 @@ export default function UploadForm() {
             </div>
 
             <div>
-              <label
-                htmlFor="expires-at"
-                className="block text-sm font-medium text-zinc-700 mb-1"
-              >
-                Expires at <span className="text-zinc-400 text-xs">(optional)</span>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
+                Expires in <span className="text-zinc-400 text-xs">(optional)</span>
               </label>
-              <input
-                id="expires-at"
-                type="datetime-local"
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-                className="w-full rounded border border-zinc-300 px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={expireCount}
+                  onChange={(e) => setExpireCount(e.target.value)}
+                  placeholder="No expiry"
+                  className="flex-1 rounded border border-zinc-300 px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <select
+                  value={expireUnit}
+                  onChange={(e) => setExpireUnit(e.target.value as 'h' | 'd')}
+                  className="rounded border border-zinc-300 px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="h">hours</option>
+                  <option value="d">days</option>
+                </select>
+              </div>
             </div>
 
             <button
