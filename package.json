@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "env -u __NEXT_PRIVATE_STANDALONE_CONFIG next build --webpack",
+    "start": "env -u __NEXT_PRIVATE_STANDALONE_CONFIG next start --webpack",
     "lint": "eslint",
     "test": "vitest run"
   },

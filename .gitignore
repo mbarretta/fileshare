@@ -63,3 +63,9 @@ tmp/
 # ── typescript ──
 *.tsbuildinfo
 next-env.d.ts
+
+# ── GSD baseline (auto-generated) ──
+node_modules/
+.next/
+build/
+coverage/
