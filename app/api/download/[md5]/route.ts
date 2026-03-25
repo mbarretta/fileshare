@@ -67,10 +67,11 @@ export async function GET(
 
     console.log('[download] file=%d md5=%s', record.id, md5);
 
+    const enc = encodeURIComponent(record.original_name);
     return new Response(webStream, {
       headers: {
         'Content-Type': record.content_type,
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(record.original_name)}"`,
+        'Content-Disposition': `attachment; filename="${enc}"; filename*=UTF-8''${enc}`,
         'Content-Length': String(record.size),
       },
     });
