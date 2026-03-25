@@ -55,6 +55,10 @@ export default async function DownloadPage({
                 Download
               </button>
             </form>
+            <div className="mt-6 pt-5 border-t border-zinc-100 dark:border-zinc-800">
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">File hash (MD5)</p>
+              <p className="text-sm font-mono text-zinc-700 dark:text-zinc-300 break-all">{md5}</p>
+            </div>
           </>
         )}
       </div>
