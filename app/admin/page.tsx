@@ -26,9 +26,17 @@ export default async function AdminFilesPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 px-4 py-10">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mb-6">
-          Admin — Files
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+            Admin — Files
+          </h1>
+          <Link
+            href="/admin/users"
+            className="rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 font-medium px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            Users →
+          </Link>
+        </div>
 
         {files.length === 0 ? (
           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 p-8 text-center text-zinc-400 text-sm">
