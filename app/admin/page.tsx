@@ -53,6 +53,7 @@ export default async function AdminFilesPage() {
                   <th className="text-left px-5 py-3 text-zinc-500 dark:text-zinc-400 font-medium">Expiry</th>
                   <th className="text-right px-5 py-3 text-zinc-500 dark:text-zinc-400 font-medium">Downloads</th>
                   <th className="text-left px-5 py-3 text-zinc-500 dark:text-zinc-400 font-medium">Uploaded</th>
+                  <th className="text-left px-5 py-3 text-zinc-500 dark:text-zinc-400 font-medium">Uploaded By</th>
                 </tr>
               </thead>
               <tbody>
@@ -84,6 +85,7 @@ export default async function AdminFilesPage() {
                     <td className="px-5 py-3 text-zinc-500 dark:text-zinc-400">
                       {new Date(file.uploaded_at * 1000).toISOString().replace('T', ' ').slice(0, 10)}
                     </td>
+                    <td className="px-5 py-3 text-zinc-500 dark:text-zinc-400">{file.uploaded_by ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
