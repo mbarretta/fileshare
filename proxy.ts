@@ -2,11 +2,6 @@ import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Routes that are publicly accessible without a session
-const PUBLIC_PREFIXES = ['/api/auth', '/login'];
-// Exact public paths (dynamic segments handled separately)
-const PUBLIC_EXACT = new Set(['/', '/login']);
-
 function isPublicRoute(pathname: string): boolean {
   // Auth.js own API routes
   if (pathname.startsWith('/api/auth/')) return true;

@@ -1,9 +1,9 @@
 export const runtime = 'nodejs';
 
 import { type NextRequest } from 'next/server';
-import bcrypt from 'bcryptjs';
 import { getUserById, updateUser, deleteUser } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
+import { hashPassword } from '@/lib/token';
 import { auth } from '@/auth';
 import type { Permission } from '@/types';
 
@@ -77,7 +77,7 @@ export async function PATCH(request: NextRequest, { params }: Params): Promise<R
         return Response.json({ error: 'password must be a string', phase }, { status: 400 });
       }
       phase = 'hash';
-      patch.password_hash = await bcrypt.hash(password, 10);
+      patch.password_hash = await hashPassword(password);
       phase = 'build-patch';
     }
     if (permissions !== undefined) {

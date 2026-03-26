@@ -17,18 +17,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const expired = getExpiredFiles();
-  let deleted = 0;
-  const errors: string[] = [];
-
-  for (const record of expired) {
-    try {
+  const results = await Promise.allSettled(
+    expired.map(async (record) => {
       await deleteFromGCS(record.gcs_key);
       deleteFile(record.id);
+    }),
+  );
+
+  let deleted = 0;
+  const errors: string[] = [];
+  for (const [i, result] of results.entries()) {
+    if (result.status === 'fulfilled') {
       deleted++;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('[cleanup] phase=gcs-delete key=%s error=%s', record.gcs_key, msg);
-      errors.push(`${record.gcs_key}: ${msg}`);
+    } else {
+      const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      console.error('[cleanup] phase=gcs-delete key=%s error=%s', expired[i].gcs_key, msg);
+      errors.push(`${expired[i].gcs_key}: ${msg}`);
     }
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface AdminFileActionsProps {
@@ -30,6 +30,13 @@ export default function AdminFileActions({ fileId, expiresAt }: AdminFileActions
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const [copiedRegen, setCopiedRegen] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
 
   async function handleSaveExpiry() {
     setSaving(true);
@@ -77,7 +84,8 @@ export default function AdminFileActions({ fileId, expiresAt }: AdminFileActions
     if (!regenToken) return;
     navigator.clipboard.writeText(regenToken);
     setCopiedRegen(true);
-    setTimeout(() => setCopiedRegen(false), 2000);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopiedRegen(false), 2000);
   }
 
   async function handleDelete() {

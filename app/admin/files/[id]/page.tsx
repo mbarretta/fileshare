@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getFileById, getDownloadCount, getDownloadLogs } from '@/lib/db';
+import { getFileById, getDownloadLogs } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
 import AdminFileActions from './AdminFileActions';
 
@@ -60,7 +60,6 @@ export default async function AdminFileDetailPage({
     );
   }
 
-  const download_count = getDownloadCount(numericId);
   const download_logs = getDownloadLogs(numericId);
 
   // Destructure token_hash out — never render it
@@ -105,7 +104,7 @@ export default async function AdminFileDetailPage({
           ))}
           <div className="flex justify-between items-baseline px-5 py-3 text-sm">
             <span className="text-zinc-500 dark:text-zinc-400">Downloads</span>
-            <span className="text-zinc-900 dark:text-zinc-100 font-semibold">{download_count}</span>
+            <span className="text-zinc-900 dark:text-zinc-100 font-semibold">{download_logs.length}</span>
           </div>
         </div>
 

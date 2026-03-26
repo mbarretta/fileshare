@@ -7,7 +7,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { computeMD5AndStream } from '@/lib/md5';
 import { streamToGCS, deleteFromGCS, renameInGCS } from '@/lib/gcs';
-import { insertFile, getFileByMd5, getDb } from '@/lib/db';
+import { insertFile, getFileByMd5, updateFileTokenHash, updateFileExpiry } from '@/lib/db';
 import { generateToken, hashToken } from '@/lib/token';
 import { parseExpiresAt, parseExpiresIn } from '@/lib/expiry';
 import { auth } from '@/auth';
@@ -119,6 +119,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const finalGCSKey = `${md5}.${ext}`;
 
+    const resolveExpiry = (fallback: number | null) =>
+      fieldValues['expires_in']
+        ? parseExpiresIn(fieldValues['expires_in'])
+        : fieldValues['expires_at']
+          ? parseExpiresAt(fieldValues['expires_at'])
+          : fallback;
+
     // Check for MD5 collision — file already uploaded with same content
     const existing = getFileByMd5(md5);
     if (existing) {
@@ -134,20 +141,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const token = generateToken();
       const tokenHash = await hashToken(token);
 
-      // Update the token_hash for the existing record
-      // (re-use the existing record's expiry; caller may not have sent expires_at)
-      const expiresAtTs = fieldValues['expires_in']
-        ? parseExpiresIn(fieldValues['expires_in'])
-        : fieldValues['expires_at']
-          ? parseExpiresAt(fieldValues['expires_at'])
-          : existing.expires_at;
+      const expiresAtTs = resolveExpiry(existing.expires_at);
 
-      phase = 'db-insert';
-      getDb().prepare('UPDATE files SET token_hash = ?, expires_at = ? WHERE id = ?').run(
-        tokenHash,
-        expiresAtTs,
-        existing.id,
-      );
+      phase = 'db-update';
+      updateFileTokenHash(existing.id, tokenHash);
+      updateFileExpiry(existing.id, expiresAtTs);
 
       console.log('[upload] collision file=%d md5=%s size=%d', existing.id, existing.md5, existing.size);
 
@@ -163,12 +161,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await renameInGCS(tempGCSKey, finalGCSKey);
     tempGCSKey = null; // successfully renamed; finalGCSKey is now the live object
 
-    // Parse expires_at into a Unix timestamp (null = no expiry)
-    const expiresAtTs = fieldValues['expires_in']
-      ? parseExpiresIn(fieldValues['expires_in'])
-      : fieldValues['expires_at']
-        ? parseExpiresAt(fieldValues['expires_at'])
-        : null;
+    const expiresAtTs = resolveExpiry(null);
 
     // Generate a one-time download token
     const token = generateToken();
@@ -210,6 +203,3 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-/** Parse expires_at from ISO string or Unix timestamp string → number | null */
-// Moved to lib/expiry.ts — re-exported here for backward compatibility
-// (unused local copy removed; import above covers all usages)

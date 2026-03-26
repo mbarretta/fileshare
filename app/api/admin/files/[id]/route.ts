@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
 import { type NextRequest } from 'next/server';
-import { getFileById, getDownloadCount, getDownloadLogs, updateFileExpiry, updateFileTokenHash, deleteFile } from '@/lib/db';
+import { getFileById, getDownloadLogs, updateFileExpiry, updateFileTokenHash, deleteFile } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
 import { generateToken, hashToken } from '@/lib/token';
 import { deleteFromGCS } from '@/lib/gcs';
@@ -29,14 +29,13 @@ export async function GET(request: NextRequest, { params }: Params): Promise<Res
     }
 
     phase = 'db-metrics';
-    const download_count = getDownloadCount(numericId);
     const download_logs = getDownloadLogs(numericId);
 
     // Strip token_hash before returning
     const { token_hash: _th, ...safeRecord } = record;
 
-    console.log('[admin] action=get id=%d download_count=%d', numericId, download_count);
-    return Response.json({ ...safeRecord, download_count, download_logs });
+    console.log('[admin] action=get id=%d download_count=%d', numericId, download_logs.length);
+    return Response.json({ ...safeRecord, download_count: download_logs.length, download_logs });
   } catch (err) {
     console.error('[admin] phase=%s error=%s', phase, String(err));
     return Response.json({ error: 'Internal server error', phase }, { status: 500 });

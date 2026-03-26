@@ -1,9 +1,9 @@
 export const runtime = 'nodejs';
 
 import { type NextRequest } from 'next/server';
-import bcrypt from 'bcryptjs';
 import { listUsers, createUser } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
+import { hashPassword } from '@/lib/token';
 import type { Permission } from '@/types';
 
 export async function GET(_request: NextRequest): Promise<Response> {
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     phase = 'hash';
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await hashPassword(password);
 
     phase = 'db-create';
     const user = createUser({

@@ -92,7 +92,6 @@ const config: NextAuthConfig = {
           return null;
         }
 
-        // verifyToken(plaintext, hash) — confirmed from lib/token.ts
         const valid = await verifyToken(password, user.password_hash);
         if (!valid) {
           console.log('[auth] action=login username=%s result=invalid_password', username);
