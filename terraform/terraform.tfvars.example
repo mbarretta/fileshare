@@ -1,0 +1,50 @@
+# Copy this file to terraform.tfvars and fill in all values.
+#
+# IMPORTANT: terraform.tfvars contains sensitive values (bootstrap_admin_pass,
+# oidc_client_secret). Add it to .gitignore — do NOT commit it.
+
+# ── Required ──────────────────────────────────────────────────────────────────
+
+project_id = "pubsec-se"
+region     = "us-central1"
+
+# Build and push the image before applying. The docker_push_command output
+# shows the exact command to use after the first apply.
+container_image = "us-central1-docker.pkg.dev/pubsec-se/cloud-run-source-deploy/fileshare:latest"
+
+# Set to false if the file-storage bucket already exists (e.g. pubsec-fileshare
+# in the pubsec-se project). Set to true to have Terraform create it.
+create_file_bucket = false
+file_bucket_name   = "pubsec-fileshare"
+
+# The SQLite FUSE volume bucket — always created by Terraform.
+db_bucket_name = "pubsec-fileshare-db"
+
+# Initial admin credentials for the bootstrap job.
+# SENSITIVE — do not commit.
+bootstrap_admin_user = "admin"
+bootstrap_admin_pass = "CHANGE_ME_BEFORE_APPLY"
+
+# ── Set after first apply ─────────────────────────────────────────────────────
+# Run: terraform output service_url
+# Then paste the value here and re-apply to set AUTH_URL on the service.
+
+auth_url = ""   # e.g. "https://fileshare-abc123-uc.a.run.app"
+
+# ── Optional: OIDC login ──────────────────────────────────────────────────────
+# Leave all three empty to disable OIDC. All three must be non-empty to enable.
+# Create an OAuth 2.0 Client ID in GCP Console first:
+#   APIs & Services → Credentials → OAuth 2.0 Client ID
+#   Authorized redirect URI: {service_url}/api/auth/callback/oidc
+
+oidc_issuer        = ""   # e.g. "https://accounts.google.com"
+oidc_client_id     = ""   # SENSITIVE — do not commit
+oidc_client_secret = ""   # SENSITIVE — do not commit
+
+# ── Optional overrides ────────────────────────────────────────────────────────
+
+# cloud_run_service_name = "fileshare"
+# cloud_run_job_name     = "fileshare-bootstrap"
+# cloud_run_memory       = "512Mi"
+# cloud_run_cpu          = "1"
+# artifact_registry_repo = "cloud-run-source-deploy"

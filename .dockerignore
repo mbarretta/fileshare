@@ -1,0 +1,9 @@
+.git
+.next
+node_modules
+data
+*.db
+.env
+.env.local
+.env*.local
+**/.gsd

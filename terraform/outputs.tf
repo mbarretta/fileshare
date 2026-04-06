@@ -1,0 +1,34 @@
+output "service_url" {
+  description = "Public URL of the Cloud Run service. Use this value to set var.auth_url on the second apply."
+  value       = google_cloud_run_v2_service.fileshare.uri
+}
+
+output "service_account_email" {
+  description = "Email of the service account used by Cloud Run."
+  value       = google_service_account.fileshare_app.email
+}
+
+output "file_bucket_name" {
+  description = "Name of the GCS bucket used for uploaded files."
+  value       = var.file_bucket_name
+}
+
+output "db_bucket_name" {
+  description = "Name of the GCS bucket used for the SQLite FUSE volume."
+  value       = google_storage_bucket.fileshare_db.name
+}
+
+output "artifact_registry_url" {
+  description = "Base URL for pushing images to Artifact Registry."
+  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}"
+}
+
+output "docker_push_command" {
+  description = "Example docker buildx command for building and pushing the image."
+  value       = "docker buildx build --platform linux/amd64 -t ${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}/fileshare:latest --push ."
+}
+
+output "bootstrap_job_execute_command" {
+  description = "Command to run the bootstrap job after the first apply."
+  value       = "gcloud run jobs execute ${var.cloud_run_job_name} --region=${var.region} --project=${var.project_id} --wait"
+}
