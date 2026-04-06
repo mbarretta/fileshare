@@ -59,7 +59,7 @@ const SAMPLE_FILE: FileRecord = {
   id: 1,
   filename: 'file.txt',
   original_name: 'file.txt',
-  md5: 'abc123',
+  sha256: 'abc123',
   size: 100,
   content_type: 'text/plain',
   gcs_key: 'uploads/file.txt',

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS files (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   filename     TEXT NOT NULL,
   original_name TEXT NOT NULL,
-  md5          TEXT NOT NULL UNIQUE,
+  sha256       TEXT NOT NULL UNIQUE,
   size         INTEGER NOT NULL,
   content_type TEXT NOT NULL,
   gcs_key      TEXT NOT NULL UNIQUE,
@@ -43,6 +43,11 @@ export function getDb(): Database.Database {
   db.pragma('journal_mode = WAL');
   db.exec(SCHEMA);
 
+  const hasMd5 = db.prepare("SELECT name FROM pragma_table_info('files') WHERE name = 'md5'").get();
+  if (hasMd5) {
+    db.exec('ALTER TABLE files RENAME COLUMN md5 TO sha256');
+  }
+
   _db = db;
   return _db;
 }
@@ -60,8 +65,8 @@ type InsertFileData = Omit<FileRecord, 'id' | 'uploaded_at'>;
 export function insertFile(data: InsertFileData): FileRecord {
   const db = getDb();
   const stmt = db.prepare<InsertFileData>(`
-    INSERT INTO files (filename, original_name, md5, size, content_type, gcs_key, token_hash, expires_at, uploaded_by)
-    VALUES (@filename, @original_name, @md5, @size, @content_type, @gcs_key, @token_hash, @expires_at, @uploaded_by)
+    INSERT INTO files (filename, original_name, sha256, size, content_type, gcs_key, token_hash, expires_at, uploaded_by)
+    VALUES (@filename, @original_name, @sha256, @size, @content_type, @gcs_key, @token_hash, @expires_at, @uploaded_by)
   `);
   const result = stmt.run(data);
   const record = db.prepare<[number], FileRecord>('SELECT * FROM files WHERE id = ?').get(result.lastInsertRowid as number);
@@ -69,9 +74,9 @@ export function insertFile(data: InsertFileData): FileRecord {
   return record;
 }
 
-export function getFileByMd5(md5: string): FileRecord | undefined {
+export function getFileBySha256(sha256: string): FileRecord | undefined {
   const db = getDb();
-  return db.prepare<[string], FileRecord>('SELECT * FROM files WHERE md5 = ?').get(md5);
+  return db.prepare<[string], FileRecord>('SELECT * FROM files WHERE sha256 = ?').get(sha256);
 }
 
 export function getFileById(id: number): FileRecord | undefined {

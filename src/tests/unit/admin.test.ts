@@ -14,7 +14,7 @@ function makeFileData(overrides: Partial<Parameters<typeof insertFile>[0]> = {})
   return {
     filename: 'test-file.txt',
     original_name: 'test file.txt',
-    md5: 'abc123def456abc123def456abc12345',
+    sha256: 'abc123def456abc123def456abc123def456abc123def456abc123def456ab12',
     size: 1024,
     content_type: 'text/plain',
     gcs_key: 'uploads/test-file.txt',
