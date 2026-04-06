@@ -1,4 +1,6 @@
-# GCP Deployment: Cloud Run + GCS FUSE (SQLite)
+# GCP Deployment: Cloud Run + GCS FUSE (SQLite) — Manual Reference
+
+> **Note:** The preferred deployment method is now `terraform/deploy.sh`, which automates all of the steps below including `AUTH_URL` configuration and admin bootstrapping. See the [README's Terraform section](README.md#deploy-to-gcp-with-terraform). This document is kept as a reference for understanding the architecture or performing manual operations.
 
 ## Architecture
 

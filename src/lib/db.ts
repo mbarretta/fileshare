@@ -31,6 +31,43 @@ CREATE TABLE IF NOT EXISTS users (
 );
 `;
 
+// ── Schema migrations ─────────────────────────────────────────────────────────
+// Keyed by target user_version. Add new entries here; never edit existing ones.
+// The live DB was bootstrapped from a prototype with only:
+//   id, md5, gcs_key, token_hash, expires_at, uploaded_at
+// user_version=0 means "no migrations applied yet".
+
+const MIGRATIONS: Record<number, (db: Database.Database) => void> = {
+  1: (db) => {
+    // Rename md5 → sha256; add all columns that the prototype schema lacked.
+    const cols = new Set(
+      (db.prepare("SELECT name FROM pragma_table_info('files')").all() as { name: string }[]).map(r => r.name)
+    );
+    if (cols.has('md5')) db.exec('ALTER TABLE files RENAME COLUMN md5 TO sha256');
+    if (!cols.has('content_type'))  db.exec("ALTER TABLE files ADD COLUMN content_type TEXT NOT NULL DEFAULT 'application/octet-stream'");
+    if (!cols.has('size'))          db.exec('ALTER TABLE files ADD COLUMN size INTEGER NOT NULL DEFAULT 0');
+    if (!cols.has('filename'))      db.exec("ALTER TABLE files ADD COLUMN filename TEXT NOT NULL DEFAULT ''");
+    if (!cols.has('original_name')) db.exec("ALTER TABLE files ADD COLUMN original_name TEXT NOT NULL DEFAULT ''");
+    if (!cols.has('uploaded_by'))   db.exec('ALTER TABLE files ADD COLUMN uploaded_by TEXT');
+    // Backfill text columns from gcs_key for any pre-existing rows.
+    db.exec("UPDATE files SET filename = gcs_key WHERE filename = ''");
+    db.exec("UPDATE files SET original_name = gcs_key WHERE original_name = ''");
+  },
+};
+
+function runMigrations(db: Database.Database): void {
+  const current = (db.pragma('user_version', { simple: true }) as number);
+  const versions = Object.keys(MIGRATIONS).map(Number).sort((a, b) => a - b);
+  for (const v of versions) {
+    if (v > current) {
+      db.transaction(() => {
+        MIGRATIONS[v](db);
+        db.pragma(`user_version = ${v}`);
+      })();
+    }
+  }
+}
+
 let _db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
@@ -42,11 +79,7 @@ export function getDb(): Database.Database {
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.exec(SCHEMA);
-
-  const hasMd5 = db.prepare("SELECT name FROM pragma_table_info('files') WHERE name = 'md5'").get();
-  if (hasMd5) {
-    db.exec('ALTER TABLE files RENAME COLUMN md5 TO sha256');
-  }
+  runMigrations(db);
 
   _db = db;
   return _db;
