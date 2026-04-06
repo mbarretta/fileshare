@@ -8,49 +8,87 @@ interface UploadResult {
   expires_at: number | null;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function UploadForm() {
   const [file, setFile] = useState<File | null>(null);
+  const [fileSize, setFileSize] = useState<number | null>(null);
   const [expireCount, setExpireCount] = useState<string>('');
   const [expireUnit, setExpireUnit] = useState<'h' | 'd'>('d');
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    if (!file) return;
+    if (!file) return Promise.resolve();
 
     setLoading(true);
     setError(null);
     setResult(null);
     setCopied(false);
+    setProgress(0);
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (expireCount) {
-        formData.append('expires_in', `${expireCount}${expireUnit}`);
-      }
-
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const json = await res.json();
-
-      if (!res.ok) {
-        setError((json as { error?: string }).error ?? `Upload failed (${res.status})`);
-      } else {
-        setResult(json as UploadResult);
-        // Reset form
-        setFile(null);
-        setExpireCount('');
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
+    const formData = new FormData();
+    formData.append('file', file);
+    if (expireCount) {
+      formData.append('expires_in', `${expireCount}${expireUnit}`);
     }
+
+    return new Promise<void>((resolve) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        try {
+          const json = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setResult(json as UploadResult);
+            setFile(null);
+            setFileSize(null);
+            setExpireCount('');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          } else {
+            setError((json as { error?: string }).error ?? `Upload failed (${xhr.status})`);
+          }
+        } catch {
+          setError('Invalid server response');
+        } finally {
+          setLoading(false);
+          setProgress(null);
+          resolve();
+        }
+      };
+
+      xhr.onerror = () => {
+        setError('Network error');
+        setLoading(false);
+        setProgress(null);
+        resolve();
+      };
+
+      xhr.onabort = () => {
+        setError('Upload cancelled');
+        setLoading(false);
+        setProgress(null);
+        resolve();
+      };
+
+      xhr.open('POST', '/api/upload');
+      xhr.send(formData);
+    });
   }
 
   async function copyToken() {
@@ -144,10 +182,26 @@ export default function UploadForm() {
                 ref={fileInputRef}
                 type="file"
                 required
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setFile(f);
+                  setFileSize(f?.size ?? null);
+                }}
                 className="w-full text-sm text-zinc-700 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
               />
+              {fileSize !== null && (
+                <p className="text-xs text-zinc-500 mt-1">{formatBytes(fileSize)}</p>
+              )}
             </div>
+
+            {progress !== null && (
+              <div className="w-full bg-zinc-100 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-150"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-zinc-700 mb-1">
