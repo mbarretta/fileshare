@@ -1,12 +1,30 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { sha256 as nobleSha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 interface UploadResult {
   url: string;
   token: string;
   expires_at: number | null;
 }
+
+interface PrepareCollisionResponse {
+  type: 'collision';
+  url: string;
+  token: string;
+  expires_at: number | null;
+}
+
+interface PrepareUploadResponse {
+  type: 'upload';
+  signedUrl: string;
+  gcsKey: string;
+  contentType: string;
+}
+
+type PrepareResponse = PrepareCollisionResponse | PrepareUploadResponse;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -26,69 +44,108 @@ export default function UploadForm() {
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+  function resetForm() {
+    setFile(null);
+    setFileSize(null);
+    setExpireCount('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    if (!file) return Promise.resolve();
+    if (!file) return;
 
     setLoading(true);
     setError(null);
     setResult(null);
     setCopied(false);
-    setProgress(0);
+    setProgress(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
-    if (expireCount) {
-      formData.append('expires_in', `${expireCount}${expireUnit}`);
+    try {
+      // Step A — Hash the file client-side in 64MB chunks
+      const CHUNK_SIZE = 64 * 1024 * 1024; // 64MB
+      const hasher = nobleSha256.create();
+      let offset = 0;
+      while (offset < file.size) {
+        const chunk = await file.slice(offset, offset + CHUNK_SIZE).arrayBuffer();
+        hasher.update(new Uint8Array(chunk));
+        offset += CHUNK_SIZE;
+      }
+      const sha256Hex = bytesToHex(hasher.digest());
+
+      // Step B — Call prepare
+      const prepareBody: Record<string, unknown> = {
+        sha256: sha256Hex,
+        filename: file.name,
+        contentType: file.type || 'application/octet-stream',
+        size: file.size,
+      };
+      if (expireCount) prepareBody.expires_in = `${expireCount}${expireUnit}`;
+
+      const prepareRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prepareBody),
+      });
+      const prepareJson = await prepareRes.json() as PrepareResponse;
+      if (!prepareRes.ok) {
+        setError((prepareJson as { error?: string }).error ?? `Prepare failed (${prepareRes.status})`);
+        return;
+      }
+
+      // Step C — Handle collision shortcut (file already uploaded)
+      if (prepareJson.type === 'collision') {
+        setResult({ url: prepareJson.url, token: prepareJson.token, expires_at: prepareJson.expires_at });
+        resetForm();
+        return;
+      }
+
+      // Step D — PUT directly to GCS signed URL
+      const { signedUrl, gcsKey, contentType: signedContentType } = prepareJson;
+      setProgress(0);
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`GCS PUT failed: ${xhr.status}`));
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.open('PUT', signedUrl);
+        xhr.setRequestHeader('Content-Type', signedContentType); // must match signed URL contentType exactly
+        xhr.send(file);
+      });
+
+      // Step E — Call complete to record DB metadata
+      const completeBody: Record<string, unknown> = {
+        sha256: sha256Hex,
+        gcsKey,
+        filename: file.name,
+        contentType: file.type || 'application/octet-stream',
+        size: file.size,
+      };
+      if (expireCount) completeBody.expires_in = `${expireCount}${expireUnit}`;
+
+      const completeRes = await fetch('/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(completeBody),
+      });
+      const completeJson = await completeRes.json() as UploadResult;
+      if (!completeRes.ok) {
+        setError((completeJson as { error?: string }).error ?? `Complete failed (${completeRes.status})`);
+        return;
+      }
+      setResult(completeJson);
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setLoading(false);
+      setProgress(null);
     }
-
-    return new Promise<void>((resolve) => {
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          setProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      };
-
-      xhr.onload = () => {
-        try {
-          const json = JSON.parse(xhr.responseText);
-          if (xhr.status >= 200 && xhr.status < 300) {
-            setResult(json as UploadResult);
-            setFile(null);
-            setFileSize(null);
-            setExpireCount('');
-            if (fileInputRef.current) fileInputRef.current.value = '';
-          } else {
-            setError((json as { error?: string }).error ?? `Upload failed (${xhr.status})`);
-          }
-        } catch {
-          setError('Invalid server response');
-        } finally {
-          setLoading(false);
-          setProgress(null);
-          resolve();
-        }
-      };
-
-      xhr.onerror = () => {
-        setError('Network error');
-        setLoading(false);
-        setProgress(null);
-        resolve();
-      };
-
-      xhr.onabort = () => {
-        setError('Upload cancelled');
-        setLoading(false);
-        setProgress(null);
-        resolve();
-      };
-
-      xhr.open('POST', '/api/upload');
-      xhr.send(formData);
-    });
   }
 
   async function copyToken() {
