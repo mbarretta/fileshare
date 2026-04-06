@@ -4,7 +4,11 @@ import { Readable } from 'stream';
 const bucketName = process.env.GCS_BUCKET;
 if (!bucketName) throw new Error('GCS_BUCKET env var is required');
 
-const storage = new Storage(); // uses ADC or GOOGLE_APPLICATION_CREDENTIALS
+const storage = new Storage(
+  process.env.GCS_SERVICE_ACCOUNT_EMAIL
+    ? { email: process.env.GCS_SERVICE_ACCOUNT_EMAIL }
+    : {},
+); // uses ADC, GOOGLE_APPLICATION_CREDENTIALS, or IAM signBlob via GCS_SERVICE_ACCOUNT_EMAIL
 const bucket = storage.bucket(bucketName);
 
 export async function streamToGCS(
@@ -35,4 +39,23 @@ export function getGCSReadStream(gcsKey: string): Readable {
 /** Rename a GCS object from oldKey to newKey. Returns the new key. */
 export async function renameInGCS(oldKey: string, newKey: string): Promise<void> {
   await bucket.file(oldKey).rename(newKey);
+}
+
+/**
+ * Generate a signed PUT URL for direct browser-to-GCS upload.
+ * The caller must PUT to the returned URL with the same Content-Type header.
+ * Default TTL is 15 minutes (900 s); adjust via expiresInSeconds.
+ */
+export async function generateSignedUploadUrl(
+  gcsKey: string,
+  contentType: string,
+  expiresInSeconds = 900,
+): Promise<string> {
+  const [url] = await bucket.file(gcsKey).getSignedUrl({
+    action: 'write' as const,
+    version: 'v4',
+    expires: Date.now() + expiresInSeconds * 1000,
+    contentType,
+  });
+  return url;
 }
