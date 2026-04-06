@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["http://localhost:3000", "https://fileshare.example.com"],
+    "method": ["PUT"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]
