@@ -39,7 +39,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
   const uploadedBy = session?.user?.username ?? session?.user?.email ?? null;
 
-  let phase: 'busboy-parse' | 'gcs-upload' | 'db-insert' = 'busboy-parse';
+  let phase: 'busboy-parse' | 'gcs-upload' | 'db-insert' | 'db-update' = 'busboy-parse';
   let tempGCSKey: string | null = null;
 
   try {
