@@ -32,6 +32,15 @@ resource "google_storage_bucket_iam_member" "fileshare_app_db" {
   member = "serviceAccount:${google_service_account.fileshare_app.email}"
 }
 
+# ── Token creator (self) — required for GCS signed URL generation ─────────────
+# signBlob is needed to sign upload URLs; granted on the SA itself.
+
+resource "google_service_account_iam_member" "fileshare_app_token_creator" {
+  service_account_id = google_service_account.fileshare_app.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.fileshare_app.email}"
+}
+
 # ── Secret Manager project-level IAM ─────────────────────────────────────────
 
 resource "google_project_iam_member" "fileshare_app_secret_accessor" {

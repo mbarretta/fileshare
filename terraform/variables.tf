@@ -62,12 +62,6 @@ variable "cloud_run_cpu" {
   description = "CPU limit for the Cloud Run service container."
 }
 
-variable "auth_url" {
-  type        = string
-  default     = ""
-  description = "Public URL of the Cloud Run service (e.g. https://fileshare-abc123-uc.a.run.app). Leave empty on the first apply; retrieve from 'terraform output service_url' and re-apply."
-}
-
 # ── OIDC (optional) ───────────────────────────────────────────────────────────
 
 variable "oidc_issuer" {

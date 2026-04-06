@@ -59,10 +59,7 @@ resource "google_secret_manager_secret_version" "cleanup_secret" {
 #   terraform state rm google_secret_manager_secret_version.admin_user
 #   terraform state rm google_secret_manager_secret.admin_pass
 #   terraform state rm google_secret_manager_secret_version.admin_pass
-# Then remove these resource blocks and the corresponding env blocks in cloudrun.tf.
-#
-# lifecycle.ignore_changes on secret_data means Terraform won't try to restore
-# the value if the secret version is deleted manually.
+# Then remove bootstrap_admin_user and bootstrap_admin_pass from terraform.tfvars.
 
 resource "google_secret_manager_secret" "admin_user" {
   project   = var.project_id

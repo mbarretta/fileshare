@@ -22,6 +22,27 @@ data "google_storage_bucket" "fileshare_files_existing" {
   name  = var.file_bucket_name
 }
 
+# ── File bucket CORS ──────────────────────────────────────────────────────────
+# Allows browsers to PUT directly to GCS via signed upload URLs.
+# Works for both created and pre-existing file buckets.
+# Re-applies if the service URI changes (i.e. service is replaced).
+
+resource "terraform_data" "file_bucket_cors" {
+  triggers_replace = [google_cloud_run_v2_service.fileshare.uri]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      TMP=$(mktemp)
+      printf '[{"origin":["%s","http://localhost:3000"],"method":["PUT"],"responseHeader":["Content-Type"],"maxAgeSeconds":3600}]' \
+        "${google_cloud_run_v2_service.fileshare.uri}" > "$TMP"
+      gcloud storage buckets update gs://${var.file_bucket_name} --cors-file="$TMP" --quiet
+      rm -f "$TMP"
+    EOT
+  }
+
+  depends_on = [google_cloud_run_v2_service.fileshare]
+}
+
 # ── SQLite volume bucket ──────────────────────────────────────────────────────
 # Always created by Terraform. Must be STANDARD — NEARLINE and COLDLINE carry a
 # 30-day minimum storage duration that creates unexpected costs if the DB object

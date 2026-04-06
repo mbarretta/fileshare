@@ -413,61 +413,41 @@ The app creates the database file and runs schema migrations automatically on fi
 
 ## Deploy to GCP with Terraform
 
-The `terraform/` directory contains the complete infrastructure definition for deploying to GCP Cloud Run. It provisions GCS buckets, a service account, Secret Manager secrets, the Cloud Run service and bootstrap job, and a Cloud Scheduler cleanup cron — all from a single `terraform apply`.
+The `terraform/` directory contains the complete infrastructure definition for deploying to GCP Cloud Run. A single script handles everything: Docker build, Artifact Registry setup, all GCP resources, `AUTH_URL` configuration, and the initial admin bootstrap.
 
 ### Prerequisites
 
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.6
 - `gcloud` CLI authenticated: `gcloud auth application-default login`
 - Docker with `buildx` support (for cross-platform ARM → AMD64 builds)
-- Docker authenticated to Artifact Registry: `gcloud auth configure-docker us-central1-docker.pkg.dev`
 
-### Step 1 — Build and push the image
-
-```bash
-IMAGE=us-central1-docker.pkg.dev/YOUR_PROJECT/cloud-run-source-deploy/fileshare:latest
-docker buildx build --platform linux/amd64 -t $IMAGE --push .
-```
-
-### Step 2 — Configure and first apply
+### Step 1 — Configure
 
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars — fill in project_id, container_image, bucket names,
-# and bootstrap_admin_pass. Leave auth_url = "" for now.
-
-terraform init
-terraform plan
-terraform apply
+# Fill in: project_id, container_image, bucket names, bootstrap_admin_pass
 ```
 
-This creates ~20 resources: API enablement, GCS buckets, service account + IAM, Secret Manager secrets, the Cloud Run service (without `AUTH_URL`), the bootstrap job, and the Cloud Scheduler cleanup trigger.
-
-### Step 3 — Set AUTH_URL and re-apply
-
-Auth.js requires the service's public URL, which isn't known until after the first apply.
+### Step 2 — Deploy
 
 ```bash
-terraform output service_url
-# Copy the URL, add it to terraform.tfvars:
-#   auth_url = "https://fileshare-abc123-uc.a.run.app"
-
-terraform apply   # updates only the Cloud Run service
+./deploy.sh
 ```
 
-### Step 4 — Bootstrap the first admin user
+This single script:
+1. Configures Docker auth for Artifact Registry
+2. Imports the AR repo into Terraform state if it already exists
+3. Builds and pushes the image (`linux/amd64`)
+4. Runs `terraform init` and `terraform apply`
+5. Patches `AUTH_URL` onto the service post-creation (via `gcloud run services update`)
+6. Executes the bootstrap job to create the initial admin account
 
-```bash
-gcloud run jobs execute fileshare-bootstrap \
-  --region=us-central1 --project=YOUR_PROJECT --wait
-```
+Use `./deploy.sh --plan` to see what Terraform would change without applying.
 
-Or copy the exact command from `terraform output bootstrap_job_execute_command`.
+### Step 3 — Clean up bootstrap secrets
 
-### Step 5 — Delete bootstrap secrets
-
-After verifying you can log in, remove the temporary admin credentials:
+After verifying you can log in at the service URL, remove the temporary admin credentials:
 
 ```bash
 gcloud secrets delete fileshare-admin-user --project=YOUR_PROJECT --quiet
@@ -478,32 +458,13 @@ terraform state rm google_secret_manager_secret.admin_pass
 terraform state rm google_secret_manager_secret_version.admin_pass
 ```
 
-Also remove the corresponding resource blocks from `terraform/secrets.tf` and the `ADMIN_USER`/`ADMIN_PASS` env blocks from the bootstrap job in `terraform/cloudrun.tf`.
+Then remove the `admin_user`/`admin_pass` resource blocks from `terraform/secrets.tf` and the `ADMIN_USER`/`ADMIN_PASS` env blocks from the bootstrap job in `terraform/cloudrun.tf`.
+
+> The exact commands are also printed at the end of each `deploy.sh` run.
 
 ### Redeployments
 
-Build and push a new image, update `container_image` in `terraform.tfvars`, then `terraform apply`. Using a specific image tag (e.g. `fileshare:git-abc1234`) instead of `:latest` makes `terraform plan` show the exact change being deployed.
-
-### Importing pre-existing resources
-
-If you ran the manual deployment from `GCP_DEPLOYMENT_PLAN.md` first, import existing resources before applying:
-
-```bash
-# Artifact Registry repo
-terraform import \
-  google_artifact_registry_repository.cloud_run_source_deploy \
-  "projects/PROJECT/locations/REGION/repositories/cloud-run-source-deploy"
-
-# Existing Secret Manager secrets
-terraform import google_secret_manager_secret.auth_secret \
-  "projects/PROJECT/secrets/fileshare-auth-secret"
-terraform import google_secret_manager_secret.cleanup_secret \
-  "projects/PROJECT/secrets/fileshare-cleanup-secret"
-
-# Service account
-terraform import google_service_account.fileshare_app \
-  "projects/PROJECT/serviceAccounts/fileshare-app@PROJECT.iam.gserviceaccount.com"
-```
+Update `container_image` in `terraform.tfvars`, then re-run `./deploy.sh`. Using a specific image tag (e.g. `fileshare:git-abc1234`) instead of `:latest` makes `terraform plan` show the exact change being deployed.
 
 ### Notes
 

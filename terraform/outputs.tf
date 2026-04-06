@@ -1,5 +1,5 @@
 output "service_url" {
-  description = "Public URL of the Cloud Run service. Use this value to set var.auth_url on the second apply."
+  description = "Public URL of the Cloud Run service."
   value       = google_cloud_run_v2_service.fileshare.uri
 }
 
@@ -28,7 +28,7 @@ output "docker_push_command" {
   value       = "docker buildx build --platform linux/amd64 -t ${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}/fileshare:latest --push ."
 }
 
-output "bootstrap_job_execute_command" {
-  description = "Command to run the bootstrap job after the first apply."
-  value       = "gcloud run jobs execute ${var.cloud_run_job_name} --region=${var.region} --project=${var.project_id} --wait"
+output "bootstrap_job_name" {
+  description = "Name of the Cloud Run bootstrap job (created and executed automatically on first apply)."
+  value       = var.cloud_run_job_name
 }

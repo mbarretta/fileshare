@@ -58,16 +58,6 @@ resource "google_cloud_run_v2_service" "fileshare" {
         value = var.file_bucket_name
       }
 
-      # AUTH_URL: omitted on the first apply (var.auth_url = ""); added on the
-      # second apply after the service URL is known from terraform output.
-      dynamic "env" {
-        for_each = var.auth_url != "" ? [var.auth_url] : []
-        content {
-          name  = "AUTH_URL"
-          value = env.value
-        }
-      }
-
       # OIDC issuer is not sensitive — set as a plain env var
       dynamic "env" {
         for_each = local.oidc_enabled ? [var.oidc_issuer] : []
@@ -145,73 +135,42 @@ resource "google_cloud_run_v2_service_iam_member" "allow_unauthenticated" {
   member   = "allUsers"
 }
 
-# ── Bootstrap Cloud Run Job ───────────────────────────────────────────────────
-# Always present in state; executed manually once after the first apply.
-# Uses the same image, FUSE volume, and service account as the main service.
-#
-# Execute with:
-#   gcloud run jobs execute fileshare-bootstrap \
-#     --region=REGION --project=PROJECT_ID --wait
-#
-# After verifying login, delete the admin secrets per the instructions in
-# secrets.tf and remove the ADMIN_USER/ADMIN_PASS env blocks below.
+# ── Bootstrap job: create and execute once ────────────────────────────────────
+# google_cloud_run_v2_job does not support GCS volume mounts in provider v5.x,
+# so we create and execute the job entirely via gcloud CLI.
+# Trigger on container_image so it re-runs if the image changes.
 
-resource "google_cloud_run_v2_job" "bootstrap" {
-  project  = var.project_id
-  name     = var.cloud_run_job_name
-  location = var.region
+resource "terraform_data" "bootstrap" {
+  triggers_replace = [var.container_image]
 
-  template {
-    template {
-      service_account = google_service_account.fileshare_app.email
-
-      volumes {
-        name = "db"
-        gcs {
-          bucket    = google_storage_bucket.fileshare_db.name
-          read_only = false
-        }
-      }
-
-      containers {
-        image   = var.container_image
-        command = ["node"]
-        args    = ["scripts/bootstrap-admin.js"]
-
-        volume_mounts {
-          name       = "db"
-          mount_path = "/data"
-        }
-
-        env {
-          name  = "DATABASE_PATH"
-          value = "/data/fileshare.db"
-        }
-
-        env {
-          name = "ADMIN_USER"
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.admin_user.secret_id
-              version = "latest"
-            }
-          }
-        }
-
-        env {
-          name = "ADMIN_PASS"
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.admin_pass.secret_id
-              version = "latest"
-            }
-          }
-        }
-      }
-    }
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      if gcloud run jobs describe ${var.cloud_run_job_name} \
+           --region=${var.region} --project=${var.project_id} &>/dev/null 2>&1; then
+        echo "Bootstrap job already exists, skipping create"
+      else
+        gcloud run jobs create ${var.cloud_run_job_name} \
+          --image=${var.container_image} \
+          --region=${var.region} \
+          --project=${var.project_id} \
+          --service-account=${google_service_account.fileshare_app.email} \
+          --execution-environment=gen2 \
+          --add-volume=name=db,type=cloud-storage,bucket=${google_storage_bucket.fileshare_db.name} \
+          --add-volume-mount=volume=db,mount-path=/data \
+          --set-env-vars=DATABASE_PATH=/data/fileshare.db \
+          --set-secrets=ADMIN_USER=fileshare-admin-user:latest,ADMIN_PASS=fileshare-admin-pass:latest \
+          --command=node \
+          --args=scripts/bootstrap-admin.js \
+          --quiet
+      fi
+      gcloud run jobs execute ${var.cloud_run_job_name} \
+        --region=${var.region} --project=${var.project_id} --wait
+    EOT
   }
 
   depends_on = [
+    google_cloud_run_v2_service.fileshare,
     google_project_service.apis,
     google_secret_manager_secret_version.admin_user,
     google_secret_manager_secret_version.admin_pass,

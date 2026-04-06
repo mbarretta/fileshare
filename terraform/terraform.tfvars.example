@@ -25,12 +25,6 @@ db_bucket_name = "pubsec-fileshare-db"
 bootstrap_admin_user = "admin"
 bootstrap_admin_pass = "CHANGE_ME_BEFORE_APPLY"
 
-# ── Set after first apply ─────────────────────────────────────────────────────
-# Run: terraform output service_url
-# Then paste the value here and re-apply to set AUTH_URL on the service.
-
-auth_url = ""   # e.g. "https://fileshare-abc123-uc.a.run.app"
-
 # ── Optional: OIDC login ──────────────────────────────────────────────────────
 # Leave all three empty to disable OIDC. All three must be non-empty to enable.
 # Create an OAuth 2.0 Client ID in GCP Console first:
