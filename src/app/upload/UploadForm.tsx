@@ -41,6 +41,8 @@ export default function UploadForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
+  type UploadPhase = 'hashing' | 'uploading' | null;
+  const [phase, setPhase] = useState<UploadPhase>(null);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,16 +62,20 @@ export default function UploadForm() {
     setResult(null);
     setCopied(false);
     setProgress(null);
+    setPhase(null);
 
     try {
       // Step A — Hash the file client-side in 64MB chunks
       const CHUNK_SIZE = 64 * 1024 * 1024; // 64MB
       const hasher = nobleSha256.create();
       let offset = 0;
+      setPhase('hashing');
+      setProgress(0);
       while (offset < file.size) {
         const chunk = await file.slice(offset, offset + CHUNK_SIZE).arrayBuffer();
         hasher.update(new Uint8Array(chunk));
         offset += CHUNK_SIZE;
+        setProgress(Math.min(100, Math.round((offset / file.size) * 100)));
       }
       const sha256Hex = bytesToHex(hasher.digest());
 
@@ -102,6 +108,7 @@ export default function UploadForm() {
 
       // Step D — PUT directly to GCS signed URL
       const { signedUrl, gcsKey, contentType: signedContentType } = prepareJson;
+      setPhase('uploading');
       setProgress(0);
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -145,6 +152,7 @@ export default function UploadForm() {
     } finally {
       setLoading(false);
       setProgress(null);
+      setPhase(null);
     }
   }
 
@@ -251,12 +259,19 @@ export default function UploadForm() {
               )}
             </div>
 
-            {progress !== null && (
-              <div className="w-full bg-zinc-100 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-150"
-                  style={{ width: `${progress}%` }}
-                />
+            {phase !== null && progress !== null && (
+              <div>
+                <p className="text-xs text-zinc-500 mb-1">
+                  {phase === 'hashing' ? `Computing checksum\u2026 ${progress}%` : `Uploading\u2026 ${progress}%`}
+                </p>
+                <div className="w-full bg-zinc-100 rounded-full h-2 overflow-hidden">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-150 ${
+                      phase === 'hashing' ? 'bg-amber-500' : 'bg-blue-600'
+                    }`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               </div>
             )}
 
@@ -290,7 +305,11 @@ export default function UploadForm() {
               disabled={loading || !file}
               className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              {loading ? 'Uploading…' : 'Upload'}
+              {loading
+                ? phase === 'hashing'
+                  ? 'Computing checksum\u2026'
+                  : 'Uploading\u2026'
+                : 'Upload'}
             </button>
           </form>
         )}
