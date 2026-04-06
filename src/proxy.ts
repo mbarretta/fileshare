@@ -7,6 +7,8 @@ function isPublicRoute(pathname: string): boolean {
   if (pathname.startsWith('/api/auth/')) return true;
   // Login page
   if (pathname === '/login') return true;
+  // Logout route — must be public so unauthenticated browsers aren't redirect-looped
+  if (pathname === '/logout') return true;
   // Home page
   if (pathname === '/') return true;
   // Download route: /[md5] — single path segment, no further nesting

@@ -53,6 +53,35 @@ function makeRecord(original_name: string) {
 // Tests
 // ---------------------------------------------------------------------------
 
+describe('GET /api/download/[md5] route handler — hex guard', () => {
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    vi.mocked((await import('@/lib/token')).verifyToken).mockResolvedValue(true);
+    vi.mocked((await import('@/lib/gcs')).getGCSReadStream).mockReturnValue(Readable.from(['']));
+  });
+
+  it('returns 404 with validation phase for a non-hex md5', async () => {
+    const { GET } = await import('@/app/api/download/[md5]/route');
+    const req = new Request('http://localhost/api/download/notahash?token=valid');
+    const res = await GET(req as never, { params: Promise.resolve({ md5: 'notahash' }) });
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'Not found', phase: 'validation' });
+    expect(vi.mocked((await import('@/lib/db')).getFileByMd5)).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for a 31-char hex string (wrong length)', async () => {
+    const shortHex = 'a'.repeat(31); // 31 chars — one short of valid MD5
+    const { GET } = await import('@/app/api/download/[md5]/route');
+    const req = new Request(`http://localhost/api/download/${shortHex}?token=valid`);
+    const res = await GET(req as never, { params: Promise.resolve({ md5: shortHex }) });
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'Not found', phase: 'validation' });
+    expect(vi.mocked((await import('@/lib/db')).getFileByMd5)).not.toHaveBeenCalled();
+  });
+});
+
 describe('GET /api/download/[md5] route handler — Content-Disposition', () => {
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -67,8 +96,10 @@ describe('GET /api/download/[md5] route handler — Content-Disposition', () => 
     );
 
     const { GET } = await import('@/app/api/download/[md5]/route');
-    const req = new Request('http://localhost/api/download/abc123?token=valid');
-    const res = await GET(req as never, { params: Promise.resolve({ md5: 'abc123' }) });
+    // Use a valid 32-char hex md5 so the hex guard passes
+    const md5 = 'd8e8fca2dc0f896fd7cb4cb0031ba249';
+    const req = new Request(`http://localhost/api/download/${md5}?token=valid`);
+    const res = await GET(req as never, { params: Promise.resolve({ md5 }) });
 
     expect(res.headers.get('Content-Disposition')).toBe(
       `attachment; filename="report.pdf"; filename*=UTF-8''report.pdf`,
@@ -81,8 +112,9 @@ describe('GET /api/download/[md5] route handler — Content-Disposition', () => 
     );
 
     const { GET } = await import('@/app/api/download/[md5]/route');
-    const req = new Request('http://localhost/api/download/abc123?token=valid');
-    const res = await GET(req as never, { params: Promise.resolve({ md5: 'abc123' }) });
+    const md5 = 'd8e8fca2dc0f896fd7cb4cb0031ba249';
+    const req = new Request(`http://localhost/api/download/${md5}?token=valid`);
+    const res = await GET(req as never, { params: Promise.resolve({ md5 }) });
 
     expect(res.headers.get('Content-Disposition')).toBe(
       `attachment; filename="my%20report%202026.pdf"; filename*=UTF-8''my%20report%202026.pdf`,

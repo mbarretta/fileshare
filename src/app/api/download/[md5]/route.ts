@@ -23,6 +23,11 @@ export async function GET(
     // Resolve params (Promise in Next.js 15+/16)
     const { md5 } = await params;
 
+    // Reject anything that isn't a 32-char lowercase/uppercase hex string
+    if (!/^[a-f0-9]{32}$/i.test(md5)) {
+      return Response.json({ error: 'Not found', phase: 'validation' }, { status: 404 });
+    }
+
     // Look up the file record
     phase = 'db-lookup';
     const record = getFileByMd5(md5);
