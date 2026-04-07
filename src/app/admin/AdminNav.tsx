@@ -6,13 +6,18 @@ import { usePathname } from 'next/navigation';
 const tabs = [
   { label: 'Files', href: '/admin' },
   { label: 'Users', href: '/admin/users' },
+  { label: 'Groups', href: '/admin/groups' },
 ] as const;
 
 export default function AdminNav() {
   const pathname = usePathname();
 
-  // Determine active tab: /admin/users/** → Users, everything else → Files
-  const activeHref = pathname.startsWith('/admin/users') ? '/admin/users' : '/admin';
+  // Determine active tab
+  const activeHref = pathname.startsWith('/admin/users')
+    ? '/admin/users'
+    : pathname.startsWith('/admin/groups')
+    ? '/admin/groups'
+    : '/admin';
 
   return (
     <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
