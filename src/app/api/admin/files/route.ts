@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
 import { type NextRequest } from 'next/server';
-import { listFiles, getFileById, deleteFile } from '@/lib/db';
+import { listFiles, getFileById, deleteFile, getFileBySha256 } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
 import { deleteFromGCS } from '@/lib/gcs';
 
@@ -13,6 +13,16 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     phase = 'db-list';
+    const sha256Param = new URL(request.url).searchParams.get('sha256');
+
+    if (sha256Param) {
+      // Single-file lookup by sha256 — used by group upload collision path
+      const file = getFileBySha256(sha256Param);
+      if (!file) return Response.json({ error: 'File not found' }, { status: 404 });
+      const { token_hash: _th, ...safe } = file;
+      return Response.json(safe);
+    }
+
     const files = listFiles();
 
     // Strip token_hash from every record before returning

@@ -329,6 +329,18 @@ export function deleteUser(id: number): void {
   db.prepare<[number]>('DELETE FROM users WHERE id = ?').run(id);
 }
 
+export function getGroupsForFile(fileId: number): FileGroup[] {
+  const db = getDb();
+  return db
+    .prepare<[number], FileGroup>(
+      `SELECT g.* FROM file_groups g
+       INNER JOIN file_group_members m ON m.group_id = g.id
+       WHERE m.file_id = ?
+       ORDER BY g.name ASC`,
+    )
+    .all(fileId);
+}
+
 // ── File group helpers ────────────────────────────────────────────────────────
 
 /** Slug: 1–64 chars, lowercase alphanumeric and hyphens, no leading/trailing hyphens. */

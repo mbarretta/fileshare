@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getFileById, getDownloadLogsPaginated, getDownloadLogCount } from '@/lib/db';
+import { getFileById, getDownloadLogsPaginated, getDownloadLogCount, getGroupsForFile } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
 import AdminFileActions from './AdminFileActions';
 
@@ -68,6 +68,7 @@ export default async function AdminFileDetailPage({
   }
 
   const totalLogs = getDownloadLogCount(numericId);
+  const fileGroupsList = getGroupsForFile(numericId);
   const totalPages = Math.max(1, Math.ceil(totalLogs / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const offset = (safePage - 1) * PAGE_SIZE;
@@ -116,6 +117,24 @@ export default async function AdminFileDetailPage({
           <div className="px-5 py-3 text-sm">
             <p className="text-zinc-500 dark:text-zinc-400 text-xs mb-0.5">Downloads</p>
             <p className="text-zinc-900 dark:text-zinc-100 font-semibold">{totalLogs}</p>
+          </div>
+          <div className="px-5 py-3 text-sm">
+            <p className="text-zinc-500 dark:text-zinc-400 text-xs mb-1">Groups</p>
+            {fileGroupsList.length === 0 ? (
+              <p className="text-zinc-400">—</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {fileGroupsList.map((g) => (
+                  <Link
+                    key={g.id}
+                    href={`/admin/groups/${g.slug}`}
+                    className="inline-block rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 text-xs font-medium px-2.5 py-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
+                  >
+                    {g.name}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

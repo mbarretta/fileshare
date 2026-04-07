@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import type { FileRecord } from '@/types';
+import type { FileRecord, FileGroup } from '@/types';
 
 type FileRow = FileRecord & { download_count: number };
 
@@ -19,9 +19,10 @@ function formatExpiry(expiresAt: number | null): string {
 
 interface Props {
   files: FileRow[];
+  fileGroups: Record<number, FileGroup[]>;
 }
 
-export default function AdminFilesClient({ files }: Props) {
+export default function AdminFilesClient({ files, fileGroups }: Props) {
   const [rows, setRows] = useState<FileRow[]>(files);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [failedNames, setFailedNames] = useState<string[]>([]);
@@ -157,6 +158,7 @@ export default function AdminFilesClient({ files }: Props) {
                 <th className="text-right px-5 py-3 text-zinc-500 dark:text-zinc-400 font-medium">Downloads</th>
                 <th className="text-left px-5 py-3 text-zinc-500 dark:text-zinc-400 font-medium">Uploaded</th>
                 <th className="text-left px-5 py-3 text-zinc-500 dark:text-zinc-400 font-medium">Uploaded By</th>
+                <th className="text-left px-5 py-3 text-zinc-500 dark:text-zinc-400 font-medium">Groups</th>
               </tr>
             </thead>
             <tbody>
@@ -199,6 +201,23 @@ export default function AdminFilesClient({ files }: Props) {
                   </td>
                   <td className="px-5 py-3 text-zinc-500 dark:text-zinc-400">
                     {file.uploaded_by ?? '—'}
+                  </td>
+                  <td className="px-5 py-3">
+                    {(fileGroups[file.id] ?? []).length === 0 ? (
+                      <span className="text-zinc-300 dark:text-zinc-700">—</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {(fileGroups[file.id] ?? []).map((g) => (
+                          <Link
+                            key={g.id}
+                            href={`/admin/groups/${g.slug}`}
+                            className="inline-block rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 text-xs font-medium px-2 py-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
+                          >
+                            {g.name}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

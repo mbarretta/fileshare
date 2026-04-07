@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getGroupWithFiles, listFiles } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
 import AdminGroupActions from './AdminGroupActions';
+import GroupUpload from './GroupUpload';
 
 export const metadata = { title: 'Admin — Group Detail' };
 
@@ -70,6 +71,9 @@ export default async function AdminGroupDetailPage({
             </div>
           ))}
         </div>
+
+        {/* Upload directly to group */}
+        <GroupUpload slug={group.slug} />
 
         {/* Actions: rename, manage files, delete */}
         <AdminGroupActions

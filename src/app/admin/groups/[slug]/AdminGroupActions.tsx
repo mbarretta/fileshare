@@ -11,6 +11,9 @@ interface AdminGroupActionsProps {
   memberIds: Set<number>;
 }
 
+// TODO: move to server-side search+pagination when file count grows beyond a few hundred
+const PAGE_SIZE = 20;
+
 export default function AdminGroupActions({ slug, name, allFiles, memberIds }: AdminGroupActionsProps) {
   const router = useRouter();
   const [newName, setNewName] = useState(name);
@@ -20,6 +23,8 @@ export default function AdminGroupActions({ slug, name, allFiles, memberIds }: A
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [memberLoading, setMemberLoading] = useState<number | null>(null);
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [filePage, setFilePage] = useState(1);
 
   async function handleRename(e: React.FormEvent) {
     e.preventDefault();
@@ -126,39 +131,84 @@ export default function AdminGroupActions({ slug, name, allFiles, memberIds }: A
         )}
         {allFiles.length === 0 ? (
           <p className="px-6 py-4 text-sm text-zinc-400">No files uploaded yet.</p>
-        ) : (
-          <ul>
-            {allFiles.map((file, i) => {
-              const isMember = memberIds.has(file.id);
-              const isLoading = memberLoading === file.id;
-              return (
-                <li
-                  key={file.id}
-                  className={`flex items-center justify-between px-6 py-3 ${
-                    i < allFiles.length - 1 ? 'border-b border-zinc-50 dark:border-zinc-800/50' : ''
-                  }`}
-                >
-                  <div className="min-w-0 flex-1 mr-4">
-                    <p className="text-sm text-zinc-900 dark:text-zinc-100 truncate">{file.original_name}</p>
-                    <p className="text-xs text-zinc-400">{formatBytes(file.size)}</p>
-                  </div>
+        ) : (() => {
+          const filtered = allFiles.filter((f) =>
+            f.original_name.toLowerCase().includes(query.toLowerCase()),
+          );
+          const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+          const safePage = Math.min(filePage, totalPages);
+          const pageFiles = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+          const start = (safePage - 1) * PAGE_SIZE + 1;
+          const end = Math.min(safePage * PAGE_SIZE, filtered.length);
+
+          return (
+            <>
+              <div className="px-6 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setFilePage(1); }}
+                  placeholder="Search files…"
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-200"
+                />
+              </div>
+              {pageFiles.length === 0 ? (
+                <p className="px-6 py-4 text-sm text-zinc-400">No files match your search.</p>
+              ) : (
+                <ul>
+                  {pageFiles.map((file, i) => {
+                    const isMember = memberIds.has(file.id);
+                    const isLoading = memberLoading === file.id;
+                    return (
+                      <li
+                        key={file.id}
+                        className={`flex items-center justify-between px-6 py-3 ${
+                          i < pageFiles.length - 1 ? 'border-b border-zinc-50 dark:border-zinc-800/50' : ''
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1 mr-4">
+                          <p className="text-sm text-zinc-900 dark:text-zinc-100 truncate">{file.original_name}</p>
+                          <p className="text-xs text-zinc-400">{formatBytes(file.size)}</p>
+                        </div>
+                        <button
+                          onClick={() => toggleMember(file.id, isMember)}
+                          disabled={isLoading}
+                          className={[
+                            'flex-shrink-0 rounded-lg text-sm font-medium px-3 py-1.5 transition-colors disabled:opacity-50',
+                            isMember
+                              ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-700 dark:hover:text-red-400'
+                              : 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900',
+                          ].join(' ')}
+                        >
+                          {isLoading ? '…' : isMember ? 'Remove' : 'Add'}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {totalPages > 1 && (
+                <div className="px-6 py-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                   <button
-                    onClick={() => toggleMember(file.id, isMember)}
-                    disabled={isLoading}
-                    className={[
-                      'flex-shrink-0 rounded-lg text-sm font-medium px-3 py-1.5 transition-colors disabled:opacity-50',
-                      isMember
-                        ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-700 dark:hover:text-red-400'
-                        : 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900',
-                    ].join(' ')}
+                    onClick={() => setFilePage((p) => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-30"
                   >
-                    {isLoading ? '…' : isMember ? 'Remove' : 'Add'}
+                    ← Prev
                   </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                  <span className="text-xs text-zinc-400">{start}–{end} of {filtered.length}</span>
+                  <button
+                    onClick={() => setFilePage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage >= totalPages}
+                    className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-30"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* Delete */}

@@ -63,6 +63,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log('[upload] phase=complete file=%d sha256=%s size=%d', record.id, record.sha256, record.size);
 
     return NextResponse.json({
+      id: record.id,
       url: `/${record.sha256}`,
       token,
       expires_at: record.expires_at,
