@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import type { FileRecord, DownloadLog, User, Permission } from '@/types';
+import type { FileRecord, DownloadLog, User, Permission, FileGroup, FileGroupWithFiles } from '@/types';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS files (
@@ -29,6 +29,21 @@ CREATE TABLE IF NOT EXISTS users (
   permissions   TEXT NOT NULL DEFAULT '[]',
   created_at    INTEGER NOT NULL DEFAULT (unixepoch())
 );
+CREATE TABLE IF NOT EXISTS file_groups (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL,
+  slug       TEXT NOT NULL UNIQUE,
+  token_hash TEXT NOT NULL,
+  expires_at INTEGER,
+  created_by TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE TABLE IF NOT EXISTS file_group_members (
+  group_id INTEGER NOT NULL REFERENCES file_groups(id) ON DELETE CASCADE,
+  file_id  INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  added_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (group_id, file_id)
+);
 `;
 
 // ── Schema migrations ─────────────────────────────────────────────────────────
@@ -38,6 +53,26 @@ CREATE TABLE IF NOT EXISTS users (
 // user_version=0 means "no migrations applied yet".
 
 const MIGRATIONS: Record<number, (db: Database.Database) => void> = {
+  2: (db) => {
+    // Add file_groups and file_group_members for existing DBs that predate the SCHEMA block above.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS file_groups (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT NOT NULL,
+        slug       TEXT NOT NULL UNIQUE,
+        token_hash TEXT NOT NULL,
+        expires_at INTEGER,
+        created_by TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+      CREATE TABLE IF NOT EXISTS file_group_members (
+        group_id INTEGER NOT NULL REFERENCES file_groups(id) ON DELETE CASCADE,
+        file_id  INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        added_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        PRIMARY KEY (group_id, file_id)
+      );
+    `);
+  },
   1: (db) => {
     // Rename md5 → sha256; add all columns that the prototype schema lacked.
     const cols = new Set(
@@ -292,4 +327,124 @@ export function updateUser(
 export function deleteUser(id: number): void {
   const db = getDb();
   db.prepare<[number]>('DELETE FROM users WHERE id = ?').run(id);
+}
+
+// ── File group helpers ────────────────────────────────────────────────────────
+
+/** Slug: 1–64 chars, lowercase alphanumeric and hyphens, no leading/trailing hyphens. */
+export function isValidSlug(s: string): boolean {
+  return /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$/.test(s);
+}
+
+type InsertGroupData = Omit<FileGroup, 'id' | 'created_at'>;
+
+export function insertGroup(data: InsertGroupData): FileGroup {
+  const db = getDb();
+  const result = db
+    .prepare<InsertGroupData>(
+      `INSERT INTO file_groups (name, slug, token_hash, expires_at, created_by)
+       VALUES (@name, @slug, @token_hash, @expires_at, @created_by)`,
+    )
+    .run(data);
+  const record = db
+    .prepare<[number], FileGroup>('SELECT * FROM file_groups WHERE id = ?')
+    .get(result.lastInsertRowid as number);
+  if (!record) throw new Error('insertGroup: row not found after insert');
+  return record;
+}
+
+export function getGroupBySlug(slug: string): FileGroup | undefined {
+  const db = getDb();
+  return db
+    .prepare<[string], FileGroup>('SELECT * FROM file_groups WHERE slug = ?')
+    .get(slug);
+}
+
+export function getGroupById(id: number): FileGroup | undefined {
+  const db = getDb();
+  return db
+    .prepare<[number], FileGroup>('SELECT * FROM file_groups WHERE id = ?')
+    .get(id);
+}
+
+export function listGroups(): (FileGroup & { member_count: number })[] {
+  const db = getDb();
+  return db
+    .prepare<[], FileGroup & { member_count: number }>(
+      `SELECT g.*, COUNT(m.file_id) as member_count
+       FROM file_groups g
+       LEFT JOIN file_group_members m ON m.group_id = g.id
+       GROUP BY g.id
+       ORDER BY g.created_at DESC`,
+    )
+    .all();
+}
+
+export function updateGroup(
+  id: number,
+  patch: { name?: string; slug?: string; expires_at?: number | null },
+): void {
+  const fields: string[] = [];
+  const values: (string | number | null)[] = [];
+
+  if (patch.name !== undefined)       { fields.push('name = ?');       values.push(patch.name); }
+  if (patch.slug !== undefined)       { fields.push('slug = ?');       values.push(patch.slug); }
+  if ('expires_at' in patch)          { fields.push('expires_at = ?'); values.push(patch.expires_at ?? null); }
+
+  if (fields.length === 0) return;
+  values.push(id);
+  const db = getDb();
+  db.prepare(`UPDATE file_groups SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function deleteGroup(id: number): void {
+  const db = getDb();
+  db.prepare<[number]>('DELETE FROM file_groups WHERE id = ?').run(id);
+}
+
+export function addFileToGroup(groupId: number, fileId: number): void {
+  const db = getDb();
+  db
+    .prepare<[number, number]>(
+      'INSERT OR IGNORE INTO file_group_members (group_id, file_id) VALUES (?, ?)',
+    )
+    .run(groupId, fileId);
+}
+
+export function removeFileFromGroup(groupId: number, fileId: number): void {
+  const db = getDb();
+  db
+    .prepare<[number, number]>(
+      'DELETE FROM file_group_members WHERE group_id = ? AND file_id = ?',
+    )
+    .run(groupId, fileId);
+}
+
+export function listGroupFiles(groupId: number): FileRecord[] {
+  const db = getDb();
+  return db
+    .prepare<[number], FileRecord>(
+      `SELECT f.* FROM files f
+       INNER JOIN file_group_members m ON m.file_id = f.id
+       WHERE m.group_id = ?
+       ORDER BY m.added_at ASC`,
+    )
+    .all(groupId);
+}
+
+export function getGroupWithFiles(slug: string): FileGroupWithFiles | undefined {
+  const db = getDb();
+  const group = db
+    .prepare<[string], FileGroup>('SELECT * FROM file_groups WHERE slug = ?')
+    .get(slug);
+  if (!group) return undefined;
+  const files = db
+    .prepare<[number], FileRecord>(
+      `SELECT f.* FROM files f
+       INNER JOIN file_group_members m ON m.file_id = f.id
+       WHERE m.group_id = ?
+       ORDER BY m.added_at ASC`,
+    )
+    .all(group.id);
+  return { ...group, files };
 }

@@ -27,3 +27,23 @@ export interface User {
   permissions: Permission[];  // stored as JSON text in DB
   created_at: number;
 }
+
+export interface FileGroup {
+  id: number;
+  name: string;
+  slug: string;
+  token_hash: string;
+  expires_at: number | null;
+  created_by: string | null;
+  created_at: number;
+}
+
+export interface FileGroupMember {
+  group_id: number;
+  file_id: number;
+  added_at: number;
+}
+
+export interface FileGroupWithFiles extends FileGroup {
+  files: FileRecord[];
+}
