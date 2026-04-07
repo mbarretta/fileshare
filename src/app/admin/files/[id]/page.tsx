@@ -1,7 +1,9 @@
 import Link from 'next/link';
-import { getFileById, getDownloadLogs } from '@/lib/db';
+import { getFileById, getDownloadLogsPaginated, getDownloadLogCount } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
 import AdminFileActions from './AdminFileActions';
+
+const PAGE_SIZE = 25;
 
 export const metadata = { title: 'Admin — File Detail' };
 
@@ -18,8 +20,10 @@ function formatUnix(unix: number | null): string {
 
 export default async function AdminFileDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   if (!(await getIsAdmin())) {
     return (
@@ -39,6 +43,9 @@ export default async function AdminFileDetailPage({
       </div>
     );
   }
+
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1);
 
   const file = getFileById(numericId);
 
@@ -60,7 +67,11 @@ export default async function AdminFileDetailPage({
     );
   }
 
-  const download_logs = getDownloadLogs(numericId);
+  const totalLogs = getDownloadLogCount(numericId);
+  const totalPages = Math.max(1, Math.ceil(totalLogs / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const offset = (safePage - 1) * PAGE_SIZE;
+  const download_logs = getDownloadLogsPaginated(numericId, PAGE_SIZE, offset);
 
   // Destructure token_hash out — never render it
   const { token_hash: _th, ...safeFile } = file;
@@ -104,43 +115,77 @@ export default async function AdminFileDetailPage({
           ))}
           <div className="px-5 py-3 text-sm">
             <p className="text-zinc-500 dark:text-zinc-400 text-xs mb-0.5">Downloads</p>
-            <p className="text-zinc-900 dark:text-zinc-100 font-semibold">{download_logs.length}</p>
+            <p className="text-zinc-900 dark:text-zinc-100 font-semibold">{totalLogs}</p>
           </div>
-        </div>
-
-        {/* Download log table */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-          <div className="px-5 py-3 border-b border-zinc-100 dark:border-zinc-800">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Download Log
-            </h2>
-          </div>
-          {download_logs.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-zinc-400">No downloads recorded.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                  <th className="text-left px-5 py-2 text-zinc-500 dark:text-zinc-400 font-medium">#</th>
-                  <th className="text-left px-5 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Downloaded at</th>
-                </tr>
-              </thead>
-              <tbody>
-                {download_logs.map((log, i) => (
-                  <tr key={log.id} className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0">
-                    <td className="px-5 py-2 text-zinc-400">{download_logs.length - i}</td>
-                    <td className="px-5 py-2 text-zinc-600 dark:text-zinc-300 font-mono">
-                      {formatUnix(log.downloaded_at)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
         </div>
 
         {/* Mutations (client component) */}
         <AdminFileActions fileId={safeFile.id} expiresAt={safeFile.expires_at} />
+
+        {/* Download log table */}
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <div className="px-5 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Download Log
+            </h2>
+            {totalLogs > 0 && (
+              <span className="text-xs text-zinc-400">
+                {offset + 1}–{Math.min(offset + PAGE_SIZE, totalLogs)} of {totalLogs}
+              </span>
+            )}
+          </div>
+          {download_logs.length === 0 ? (
+            <p className="px-5 py-4 text-sm text-zinc-400">No downloads recorded.</p>
+          ) : (
+            <>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 dark:border-zinc-800">
+                    <th className="text-left px-5 py-2 text-zinc-500 dark:text-zinc-400 font-medium">#</th>
+                    <th className="text-left px-5 py-2 text-zinc-500 dark:text-zinc-400 font-medium">Downloaded at</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {download_logs.map((log, i) => (
+                    <tr key={log.id} className="border-b border-zinc-50 dark:border-zinc-800/50 last:border-0">
+                      <td className="px-5 py-2 text-zinc-400">{totalLogs - offset - i}</td>
+                      <td className="px-5 py-2 text-zinc-600 dark:text-zinc-300 font-mono">
+                        {formatUnix(log.downloaded_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {totalPages > 1 && (
+                <div className="px-5 py-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                  {safePage > 1 ? (
+                    <Link
+                      href={`/admin/files/${numericId}?page=${safePage - 1}`}
+                      className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                    >
+                      ← Newer
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="text-xs text-zinc-400">
+                    Page {safePage} of {totalPages}
+                  </span>
+                  {safePage < totalPages ? (
+                    <Link
+                      href={`/admin/files/${numericId}?page=${safePage + 1}`}
+                      className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                    >
+                      Older →
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
