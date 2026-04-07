@@ -464,7 +464,17 @@ Then remove the `admin_user`/`admin_pass` resource blocks from `terraform/secret
 
 ### Redeployments
 
-Update `container_image` in `terraform.tfvars`, then re-run `./deploy.sh`. Using a specific image tag (e.g. `fileshare:git-abc1234`) instead of `:latest` makes `terraform plan` show the exact change being deployed.
+For **code-only changes** (no infrastructure updates), use the faster redeploy script — it skips Terraform entirely:
+
+```bash
+./redeploy.sh
+```
+
+For **infrastructure changes** (new env vars, IAM, scaling, etc.), re-run the full deploy:
+
+```bash
+./deploy.sh
+```
 
 ### Notes
 
