@@ -148,6 +148,29 @@ export function getDownloadLogs(fileId: number): DownloadLog[] {
     .all(fileId);
 }
 
+export function getDownloadLogsPaginated(
+  fileId: number,
+  limit: number,
+  offset: number,
+): DownloadLog[] {
+  const db = getDb();
+  return db
+    .prepare<[number, number, number], DownloadLog>(
+      'SELECT * FROM download_logs WHERE file_id = ? ORDER BY downloaded_at DESC LIMIT ? OFFSET ?',
+    )
+    .all(fileId, limit, offset);
+}
+
+export function getDownloadLogCount(fileId: number): number {
+  const db = getDb();
+  const row = db
+    .prepare<[number], { count: number }>(
+      'SELECT COUNT(*) as count FROM download_logs WHERE file_id = ?',
+    )
+    .get(fileId);
+  return row?.count ?? 0;
+}
+
 export function listFiles(): (FileRecord & { download_count: number })[] {
   const db = getDb();
   return db
