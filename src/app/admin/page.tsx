@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { listFiles } from '@/lib/db';
+import { listFiles, getGroupsForFile } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
 import AdminFilesClient from './AdminFilesClient';
 
@@ -12,10 +12,16 @@ export default async function AdminFilesPage() {
 
   const files = listFiles();
 
+  // Build fileId → groups map — one query per file is acceptable at current scale;
+  // replace with a single JOIN query if file count grows large.
+  const fileGroups = Object.fromEntries(
+    files.map((f) => [f.id, getGroupsForFile(f.id)]),
+  );
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 px-4 py-10 pr-40">
       <div className="max-w-5xl mx-auto">
-        <AdminFilesClient files={files} />
+        <AdminFilesClient files={files} fileGroups={fileGroups} />
       </div>
     </div>
   );
