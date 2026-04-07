@@ -7,7 +7,11 @@ export const metadata = { title: 'Brushpass' };
 export default async function HomePage() {
   const session = await auth();
   if (session) {
-    redirect('/upload');
+    if ((session.user.permissions ?? []).length > 0) {
+      redirect('/upload');
+    } else {
+      redirect('/request-access');
+    }
   }
 
   return (
