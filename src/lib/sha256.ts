@@ -1,6 +1,10 @@
 import crypto from 'crypto';
 import { PassThrough, Readable } from 'stream';
 
+export function isValidSha256(value: string): boolean {
+  return /^[a-f0-9]{64}$/i.test(value);
+}
+
 export interface SHA256Result {
   sha256Promise: Promise<string>;
   sizePromise: Promise<number>;

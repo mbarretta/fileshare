@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { insertFile } from '@/lib/db';
 import { generateToken, hashToken } from '@/lib/token';
 import { parseExpiresAt, parseExpiresIn } from '@/lib/expiry';
+import { isValidSha256 } from '@/lib/sha256';
 import { auth } from '@/auth';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { sha256, gcsKey, filename, contentType, size, expires_in, expires_at } = body;
 
-    if (!sha256 || !/^[a-f0-9]{64}$/.test(sha256)) {
+    if (!sha256 || !isValidSha256(sha256)) {
       return NextResponse.json({ error: 'Invalid sha256', phase: 'complete' }, { status: 400 });
     }
     if (!gcsKey || !filename || !contentType || size == null) {

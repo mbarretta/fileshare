@@ -4,6 +4,7 @@ import { type NextRequest } from 'next/server';
 import { Readable } from 'stream';
 import { getFileBySha256, logDownload } from '@/lib/db';
 import { verifyToken } from '@/lib/token';
+import { isValidSha256 } from '@/lib/sha256';
 import { getGCSReadStream } from '@/lib/gcs';
 
 export async function GET(
@@ -23,8 +24,7 @@ export async function GET(
     // Resolve params (Promise in Next.js 15+/16)
     const { sha256 } = await params;
 
-    // Reject anything that isn't a 64-char lowercase/uppercase hex string
-    if (!/^[a-f0-9]{64}$/i.test(sha256)) {
+    if (!isValidSha256(sha256)) {
       return Response.json({ error: 'Not found', phase: 'validation' }, { status: 404 });
     }
 

@@ -13,23 +13,15 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
+# shellcheck source=common.sh
+source ./common.sh
 
 PLAN_ONLY=false
 for arg in "$@"; do
   [[ "$arg" == "--plan" ]] && PLAN_ONLY=true
 done
 
-# ── Read config from tfvars ────────────────────────────────────────────────────
-
-tfvar() {
-  awk -F'"' "/^${1}[[:space:]]*=/{print \$2; exit}" terraform.tfvars
-}
-
-PROJECT_ID=$(tfvar project_id)
-REGION=$(tfvar region)
-AR_REPO=$(tfvar artifact_registry_repo)
-AR_REPO=${AR_REPO:-cloud-run-source-deploy}
-IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/fileshare:latest"
+load_config
 
 echo "==> Project : $PROJECT_ID"
 echo "==> Region  : $REGION"
@@ -83,8 +75,6 @@ terraform apply -auto-approve
 # reference), so we patch it here after every apply. This is idempotent.
 
 SERVICE_URL=$(terraform output -raw service_url)
-CR_SERVICE=$(tfvar cloud_run_service_name)
-CR_SERVICE=${CR_SERVICE:-fileshare}
 
 echo "==> Setting AUTH_URL on Cloud Run service..."
 gcloud run services update "$CR_SERVICE" \

@@ -1,4 +1,5 @@
 import { redirect, notFound } from 'next/navigation';
+import { isValidSha256 } from '@/lib/sha256';
 
 export const metadata = { title: 'Download File' };
 
@@ -11,8 +12,7 @@ export default async function DownloadPage({
 }) {
   const { sha256 } = await params;
 
-  // Reject anything that isn't a 64-char hex string — matches the API route guard.
-  if (!/^[a-f0-9]{64}$/i.test(sha256)) {
+  if (!isValidSha256(sha256)) {
     notFound();
   }
 
