@@ -1,6 +1,8 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { NextAuthConfig } from 'next-auth';
+import type { JWT } from '@auth/core/jwt';
+import type { Account, User as NextAuthUser } from 'next-auth';
 import type { Permission } from '@/types';
 
 // ── TypeScript module augmentation ──────────────────────────────────────────
@@ -10,6 +12,7 @@ declare module 'next-auth' {
   interface User {
     id: string;
     username: string;
+    email: string | null;
     permissions: Permission[];
   }
   interface Session {
@@ -21,6 +24,7 @@ declare module '@auth/core/jwt' {
   interface JWT {
     id: string;
     username: string;
+    email: string | null;
     permissions: Permission[];
   }
 }
@@ -54,6 +58,60 @@ const oidcProvider: any = oidcEnabled
       clientSecret: oidcClientSecret,
     }
   : null;
+
+// ── JWT callback (exported for unit tests) ───────────────────────────────────
+/**
+ * Handles all three jwt() invocation paths:
+ *   - session refresh (no user, no account) → return token unchanged
+ *   - credentials sign-in (account.type === 'credentials') → copy id/username/permissions
+ *   - OIDC sign-in (account.type === 'oidc') → upsert user, apply domain auto-promote
+ */
+export async function jwtCallback({
+  token,
+  user,
+  account,
+}: {
+  token: JWT;
+  user?: NextAuthUser;
+  account?: Account;
+}): Promise<JWT> {
+  // Session refresh path — neither user nor account present
+  if (!user && !account) return token;
+
+  if (account?.type === 'oidc' && user) {
+    const email = (user as { email?: string | null }).email ?? '';
+    const domain = email.split('@')[1] ?? '';
+    const adminDomain = process.env.AUTH_OIDC_ADMIN_DOMAIN ?? '';
+    const autoPromote = adminDomain !== '' && domain === adminDomain;
+    const autoPermissions: Permission[] = autoPromote ? ['upload', 'admin'] : [];
+
+    // Lazy import — keeps better-sqlite3 off the Edge runtime code path
+    const { upsertOidcUser } = await import('@/lib/db');
+    const dbUser = await upsertOidcUser(email, (user as { name?: string | null }).name ?? email, autoPermissions);
+
+    console.log(
+      '[auth] action=oidc-login email=%s domain=%s auto_promote=%s result=success',
+      email,
+      domain,
+      String(autoPromote),
+    );
+
+    token.id = String(dbUser.id);
+    token.username = email;
+    token.email = email;
+    token.permissions = dbUser.permissions;
+    return token;
+  }
+
+  // Credentials sign-in path (account.type === 'credentials') or fallback
+  if (user) {
+    token.id = (user as { id: string }).id;
+    token.username = (user as { username: string }).username;
+    token.email = (user as { email?: string | null }).email ?? null;
+    token.permissions = (user as { permissions: Permission[] }).permissions;
+  }
+  return token;
+}
 
 // ── Auth.js config ────────────────────────────────────────────────────────────
 const config: NextAuthConfig = {
@@ -104,6 +162,7 @@ const config: NextAuthConfig = {
         return {
           id: String(user.id),
           username: user.username,
+          email: user.email ?? null,
           permissions: user.permissions,
           // next-auth surfaces name in the default session.user.name field
           name: user.username,
@@ -114,20 +173,17 @@ const config: NextAuthConfig = {
   ],
 
   callbacks: {
-    async jwt({ token, user }) {
-      // On initial sign-in `user` is populated; persist our custom fields into the token.
-      if (user) {
-        token.id = user.id as string;
-        token.username = (user as { username: string }).username;
-        token.permissions = (user as { permissions: Permission[] }).permissions;
-      }
-      return token;
+    async jwt({ token, user, account }) {
+      return jwtCallback({ token: token as JWT, user: user as NextAuthUser | undefined, account: account ?? undefined });
     },
     async session({ session, token }) {
       // Project custom JWT fields onto the session user object.
       // token extends Record<string, unknown> so we cast explicitly.
       session.user.id = token.id as string;
       session.user.username = token.username as string;
+      // email can be null for credentials users — cast to bypass AdapterUser.email: string
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (session.user as any).email = (token.email as string | null | undefined) ?? null;
       session.user.permissions = token.permissions as Permission[];
       return session;
     },
