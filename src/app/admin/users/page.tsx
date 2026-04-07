@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { listUsers } from '@/lib/db';
+import { listUsers, listPendingPermissionRequests } from '@/lib/db';
 import { getIsAdmin } from '@/lib/admin-auth';
+import PendingRequestsPanel from './PendingRequestsPanel';
 
 export const metadata = { title: 'Admin — Users' };
 
@@ -11,10 +12,12 @@ export default async function AdminUsersPage() {
   }
 
   const users = listUsers();
+  const pendingRequests = listPendingPermissionRequests();
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 px-4 py-10 pr-40">
       <div className="max-w-4xl mx-auto">
+        <PendingRequestsPanel requests={pendingRequests} />
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
             Users

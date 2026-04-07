@@ -1,9 +1,11 @@
+import { getPendingRequestCount } from '@/lib/db';
 import AdminNav from './AdminNav';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pendingCount = getPendingRequestCount();
   return (
     <>
-      <AdminNav />
+      <AdminNav pendingCount={pendingCount} />
       {children}
     </>
   );
