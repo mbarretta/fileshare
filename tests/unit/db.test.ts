@@ -39,11 +39,11 @@ describe('getDb()', () => {
     expect(names).toContain('users');
   });
 
-  it('enables WAL journal mode', async () => {
+  it('uses DELETE journal mode (safe for GCS FUSE mounts)', async () => {
     const { getDb } = await import('@/lib/db');
     const db = getDb();
     const row = db.pragma('journal_mode') as { journal_mode: string }[];
-    expect(row[0].journal_mode).toBe('wal');
+    expect(row[0].journal_mode).toBe('delete');
   });
 
   it('returns the same instance on repeated calls (singleton)', async () => {

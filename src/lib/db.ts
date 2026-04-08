@@ -164,7 +164,12 @@ export function getDb(): Database.Database {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
   const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
+  // Use DELETE journal mode instead of WAL. WAL creates -wal/-shm sidecar files
+  // that GCS FUSE does not flush atomically on container shutdown — recent writes
+  // in an uncheckpointed WAL are lost on the next Cloud Run revision. DELETE mode
+  // writes directly to the main DB file with no sidecars, which is safe for our
+  // single-writer Cloud Run setup and survives revision restarts correctly.
+  db.pragma('journal_mode = DELETE');
   db.exec(SCHEMA);
   runMigrations(db);
 
