@@ -54,8 +54,8 @@ export default function AccountForm({ username, authProvider, email, permissions
         setPwError(data.error ?? 'Failed to change password');
         setPwState('error');
       }
-    } catch (err) {
-      setPwError(String(err));
+    } catch {
+      setPwError('Something went wrong. Please try again.');
       setPwState('error');
     }
   }

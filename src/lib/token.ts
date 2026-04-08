@@ -16,3 +16,5 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyToken(token: string, hash: string): Promise<boolean> {
   return bcrypt.compare(token, hash);
 }
+
+export const verifyPassword = verifyToken;

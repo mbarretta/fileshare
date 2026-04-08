@@ -142,7 +142,7 @@ const config: NextAuthConfig = {
         // better-sqlite3 is a native Node module incompatible with Edge runtime;
         // keeping the import lazy ensures this file can be loaded on Edge for proxy.
         const { getUserByUsername } = await import('@/lib/db');
-        const { verifyToken } = await import('@/lib/token');
+        const { verifyPassword } = await import('@/lib/token');
 
         const user = getUserByUsername(username);
         if (!user) {
@@ -152,7 +152,7 @@ const config: NextAuthConfig = {
 
         // OIDC users have no password_hash — credentials login must fail for them.
         if (!user.password_hash) return null;
-        const valid = await verifyToken(password, user.password_hash);
+        const valid = await verifyPassword(password, user.password_hash);
         if (!valid) {
           console.log('[auth] action=login username=%s result=invalid_password', username);
           return null;
