@@ -58,11 +58,19 @@ resource "google_cloud_run_v2_service" "fileshare" {
         value = var.file_bucket_name
       }
 
-      # OIDC issuer is not sensitive — set as a plain env var
+      # OIDC issuer and admin domain are not sensitive — set as plain env vars
       dynamic "env" {
         for_each = local.oidc_enabled ? [var.oidc_issuer] : []
         content {
           name  = "AUTH_OIDC_ISSUER"
+          value = env.value
+        }
+      }
+
+      dynamic "env" {
+        for_each = local.oidc_admin_domain_set ? [var.oidc_admin_domain] : []
+        content {
+          name  = "AUTH_OIDC_ADMIN_DOMAIN"
           value = env.value
         }
       }

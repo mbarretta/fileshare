@@ -84,6 +84,12 @@ variable "oidc_client_secret" {
   description = "OIDC client secret."
 }
 
+variable "oidc_admin_domain" {
+  type        = string
+  default     = ""
+  description = "Email domain whose users automatically receive upload+admin permissions on first OIDC sign-in (e.g. \"example.com\"). Leave empty to disable auto-promotion — all OIDC users start with no permissions."
+}
+
 # ── Bootstrap admin credentials ───────────────────────────────────────────────
 
 variable "bootstrap_admin_user" {

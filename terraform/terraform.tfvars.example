@@ -30,10 +30,15 @@ bootstrap_admin_pass = "CHANGE_ME_BEFORE_APPLY"
 # Create an OAuth 2.0 Client ID in GCP Console first:
 #   APIs & Services → Credentials → OAuth 2.0 Client ID
 #   Authorized redirect URI: {service_url}/api/auth/callback/oidc
+#   (the exact URI is printed as the oidc_callback_url output after apply)
 
 oidc_issuer        = ""   # e.g. "https://accounts.google.com"
 oidc_client_id     = ""   # SENSITIVE — do not commit
 oidc_client_secret = ""   # SENSITIVE — do not commit
+
+# Optional: auto-grant upload+admin to users whose email matches this domain
+# on their first OIDC sign-in. Leave empty to require manual permission grants.
+# oidc_admin_domain = ""  # e.g. "example.com"
 
 # ── Custom domain (optional) ──────────────────────────────────────────────────
 # When set, this hostname is added to the GCS bucket CORS policy so that

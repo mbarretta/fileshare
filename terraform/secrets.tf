@@ -112,6 +112,7 @@ locals {
     var.oidc_client_id != "" &&
     var.oidc_client_secret != ""
   )
+  oidc_admin_domain_set = local.oidc_enabled && var.oidc_admin_domain != ""
 }
 
 resource "google_secret_manager_secret" "oidc_client_id" {

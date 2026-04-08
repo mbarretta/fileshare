@@ -3,6 +3,11 @@ output "service_url" {
   value       = google_cloud_run_v2_service.fileshare.uri
 }
 
+output "oidc_callback_url" {
+  description = "Redirect URI to register with your OIDC provider (Google, Okta, etc.)."
+  value       = "${google_cloud_run_v2_service.fileshare.uri}/api/auth/callback/oidc"
+}
+
 output "service_account_email" {
   description = "Email of the service account used by Cloud Run."
   value       = google_service_account.fileshare_app.email

@@ -81,6 +81,7 @@ All three variables must be set together. Setting only some of them disables OID
 | `AUTH_OIDC_ISSUER` | OIDC issuer URL, e.g. `https://accounts.google.com` or `https://your-org.okta.com`. Must expose a `/.well-known/openid-configuration` endpoint. |
 | `AUTH_OIDC_CLIENT_ID` | Client ID from your IdP application registration. |
 | `AUTH_OIDC_CLIENT_SECRET` | Client secret from your IdP application registration. |
+| `AUTH_OIDC_ADMIN_DOMAIN` | Email domain whose users automatically receive `["upload", "admin"]` on first OIDC sign-in (e.g. `example.com`). Optional — leave unset to require manual permission grants. |
 
 ### Legacy / compatibility
 
@@ -186,9 +187,23 @@ When all three are set, the login page shows a **"Sign in with SSO"** button bel
 
 ### 3. How OIDC users get permissions
 
-OIDC login creates an Auth.js session, but **does not create a user record in the SQLite database**. OIDC users authenticate successfully but receive no `upload` or `admin` permissions — they can access the download pages and the home page, but not upload or admin routes.
+OIDC sign-in upserts a user record in SQLite (`auth_provider='oidc'`, no password hash). By default new OIDC users receive **no permissions** — they can access download pages but not upload or admin routes.
 
-This is intentional: the app's permission model is credentials-based. If you need OIDC users to have permissions, the current path is to also create a matching local user account with the same username and assign permissions there. A future milestone may add OIDC claim-to-permission mapping.
+Two ways to grant permissions:
+
+**Option A — Domain auto-promotion (recommended for internal deployments)**
+
+Set `AUTH_OIDC_ADMIN_DOMAIN` to your organization's email domain:
+
+```bash
+AUTH_OIDC_ADMIN_DOMAIN=example.com
+```
+
+Users whose email matches that domain automatically receive `["upload", "admin"]` on their **first** OIDC sign-in. Subsequent logins do not change permissions — so permissions can be downgraded manually without being re-granted on next login.
+
+**Option B — Manual grant via admin UI**
+
+Leave `AUTH_OIDC_ADMIN_DOMAIN` unset. After the user signs in once (creating their record), go to `/admin/users`, find the user, and assign permissions.
 
 ### 4. IdP-specific notes
 
@@ -483,7 +498,7 @@ For **infrastructure changes** (new env vars, IAM, scaling, etc.), re-run the fu
 
 - **`max-instances=1`** is enforced at the Terraform level. SQLite on GCS FUSE does not support concurrent writers — do not increase this unless you migrate to Cloud SQL.
 - **Terraform state** contains sensitive values (generated secrets). The default backend is local; switch to a GCS backend for team use (instructions in `terraform/main.tf`).
-- **OIDC:** set `oidc_issuer`, `oidc_client_id`, and `oidc_client_secret` in `terraform.tfvars` and re-apply. All three must be non-empty to enable. Register `{service_url}/api/auth/callback/oidc` as the redirect URI with your IdP first.
+- **OIDC:** set `oidc_issuer`, `oidc_client_id`, and `oidc_client_secret` in `terraform.tfvars` and re-apply. All three must be non-empty to enable. The exact redirect URI to register with your IdP is printed as the `oidc_callback_url` output after apply. Optionally set `oidc_admin_domain` to auto-grant upload+admin to users from that email domain on first sign-in.
 
 ---
 
