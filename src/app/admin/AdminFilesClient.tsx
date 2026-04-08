@@ -176,7 +176,7 @@ export default function AdminFilesClient({ files, fileGroups }: Props) {
                       className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 cursor-pointer"
                     />
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 whitespace-nowrap">
                     <Link
                       href={`/admin/files/${file.id}`}
                       className="text-zinc-900 dark:text-zinc-100 hover:underline font-medium"
@@ -190,13 +190,13 @@ export default function AdminFilesClient({ files, fileGroups }: Props) {
                   <td className="px-5 py-3 text-right text-zinc-600 dark:text-zinc-300">
                     {formatBytes(file.size)}
                   </td>
-                  <td className="px-5 py-3 text-zinc-600 dark:text-zinc-300">
+                  <td className="px-5 py-3 text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
                     {formatExpiry(file.expires_at)}
                   </td>
                   <td className="px-5 py-3 text-right text-zinc-600 dark:text-zinc-300">
                     {file.download_count}
                   </td>
-                  <td className="px-5 py-3 text-zinc-500 dark:text-zinc-400">
+                  <td className="px-5 py-3 text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
                     {new Date(file.uploaded_at * 1000).toISOString().replace('T', ' ').slice(0, 10)}
                   </td>
                   <td className="px-5 py-3 text-zinc-500 dark:text-zinc-400">
