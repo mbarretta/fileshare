@@ -20,7 +20,7 @@ export default function AdminNav({ pendingCount = 0 }: { pendingCount?: number }
     : '/admin';
 
   return (
-    <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+    <div className="-ml-20 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <nav
         aria-label="Admin sections"
         className="max-w-5xl mx-auto px-4 flex gap-1 pr-40"
