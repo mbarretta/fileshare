@@ -18,8 +18,13 @@ export async function GET(request: NextRequest, { params }: Params): Promise<Res
     }
 
     phase = 'token-extract';
+    // Prefer Authorization: Bearer header; fall back to ?token= query param for
+    // backwards compatibility. The header avoids token exposure in logs/history.
+    const authHeader = request.headers.get('authorization') ?? '';
     const url = new URL(request.url);
-    const token = url.searchParams.get('token') ?? null;
+    const token =
+      (authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null) ??
+      url.searchParams.get('token');
     if (!token) {
       return Response.json({ error: 'Token required', phase: 'token-extract' }, { status: 401 });
     }
@@ -55,6 +60,19 @@ export async function GET(request: NextRequest, { params }: Params): Promise<Res
     );
 
     console.log('[group-download] group=%s file=%d sha256=%s', slug, file.id, sha256);
+
+    // When called via fetch() (Authorization header path), proxy the bytes so the
+    // client can blob-download without exposing the signed GCS URL or the token in
+    // the URL bar. For backwards-compatible ?token= redirect path, keep the redirect.
+    if (authHeader.startsWith('Bearer ')) {
+      const gcsRes = await fetch(signedUrl);
+      return new Response(gcsRes.body, {
+        headers: {
+          'Content-Type': file.content_type,
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(file.original_name)}"`,
+        },
+      });
+    }
     return Response.redirect(signedUrl, 302);
   } catch (err) {
     console.error('[group-download] phase=%s error=%s', phase, String(err));

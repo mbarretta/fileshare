@@ -254,17 +254,18 @@ export function getDownloadLogCount(fileId: number): number {
   return row?.count ?? 0;
 }
 
-export function listFiles(): (FileRecord & { download_count: number })[] {
+export function listFiles(limit = 500): (FileRecord & { download_count: number })[] {
   const db = getDb();
   return db
-    .prepare<[], FileRecord & { download_count: number }>(
+    .prepare<[number], FileRecord & { download_count: number }>(
       `SELECT f.*, COUNT(dl.id) as download_count
        FROM files f
        LEFT JOIN download_logs dl ON dl.file_id = f.id
        GROUP BY f.id
-       ORDER BY f.uploaded_at DESC`,
+       ORDER BY f.uploaded_at DESC
+       LIMIT ?`,
     )
-    .all();
+    .all(limit);
 }
 
 export function updateFileExpiry(id: number, expiresAt: number | null): void {

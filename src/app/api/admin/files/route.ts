@@ -62,6 +62,12 @@ export async function DELETE(request: NextRequest): Promise<Response> {
         { status: 400 },
       );
     }
+    if ((ids as number[]).length > 100) {
+      return Response.json(
+        { error: 'Maximum 100 ids per request', phase: 'body-parse' },
+        { status: 400 },
+      );
+    }
 
     phase = 'bulk-delete';
     const results: { id: number; ok: boolean; error?: string }[] = [];

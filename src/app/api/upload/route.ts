@@ -3,8 +3,8 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import { generateSignedUploadUrl } from '@/lib/gcs';
-import { getFileBySha256, updateFileTokenHash, updateFileExpiry } from '@/lib/db';
-import { generateToken, hashToken } from '@/lib/token';
+import { getFileBySha256 } from '@/lib/db';
+
 import { parseExpiresAt, parseExpiresIn } from '@/lib/expiry';
 import { isValidSha256 } from '@/lib/sha256';
 import { auth } from '@/auth';
@@ -45,20 +45,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           ? parseExpiresAt(expires_at)
           : fallback;
 
-    // Collision check — file with this SHA-256 already uploaded
+    // Collision check — file with this SHA-256 already uploaded.
+    // Return the existing file's URL without generating or returning a token.
+    // The original uploader's token is preserved unchanged.
     const existing = getFileBySha256(sha256);
     if (existing) {
-      const token = generateToken();
-      const tokenHash = await hashToken(token);
-      const expiresAtTs = resolveExpiry(existing.expires_at);
-      updateFileTokenHash(existing.id, tokenHash);
-      updateFileExpiry(existing.id, expiresAtTs);
       console.log('[upload] phase=prepare collision file=%d sha256=%s', existing.id, sha256);
       return NextResponse.json({
         type: 'collision',
         url: `/${existing.sha256}`,
-        token,
-        expires_at: expiresAtTs,
+        expires_at: existing.expires_at,
       });
     }
 

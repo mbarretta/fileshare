@@ -1,6 +1,7 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { getExpiredFiles, deleteFile } from '@/lib/db';
 import { deleteFromGCS } from '@/lib/gcs';
 
@@ -12,7 +13,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const authHeader = req.headers.get('authorization') ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  if (token !== secret) {
+  // Use constant-time comparison to prevent timing oracle attacks on the secret.
+  const tokenBuf = Buffer.from(token);
+  const secretBuf = Buffer.from(secret);
+  if (
+    tokenBuf.length !== secretBuf.length ||
+    !crypto.timingSafeEqual(tokenBuf, secretBuf)
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

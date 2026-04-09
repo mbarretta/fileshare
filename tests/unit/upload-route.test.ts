@@ -167,13 +167,14 @@ describe('POST /api/upload — prepare phase', () => {
     const json = await res.json();
     expect(json.type).toBe('collision');
     expect(json.url).toBe(`/${VALID_SHA256}`);
-    expect(json.token).toBe('tok_test');
+    // No token returned on collision — the original uploader's token is preserved.
+    expect(json).not.toHaveProperty('token');
     expect(json).not.toHaveProperty('signedUrl');
 
-    // DB update functions should be called for the collision path
+    // DB update functions must NOT be called — original token is untouched.
     const { updateFileTokenHash, updateFileExpiry } = await import('@/lib/db');
-    expect(vi.mocked(updateFileTokenHash)).toHaveBeenCalledWith(42, 'hashed_token');
-    expect(vi.mocked(updateFileExpiry)).toHaveBeenCalledWith(42, null);
+    expect(vi.mocked(updateFileTokenHash)).not.toHaveBeenCalled();
+    expect(vi.mocked(updateFileExpiry)).not.toHaveBeenCalled();
   });
 
   it('returns upload response with signedUrl and gcsKey for a new file', async () => {

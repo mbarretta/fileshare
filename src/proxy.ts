@@ -2,6 +2,64 @@ import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Simple in-memory sliding window. Safe for Cloud Run single-instance deployment.
+// Keyed by "route-category:ip". Entries expire after the window elapses.
+
+interface RateLimitEntry { count: number; windowStart: number }
+const rateLimitStore = new Map<string, RateLimitEntry>();
+
+const RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
+  login:    { max: 10, windowMs: 60_000 },
+  download: { max: 30, windowMs: 60_000 },
+  account:  { max:  3, windowMs: 60_000 },
+};
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  );
+}
+
+function isRateLimited(category: string, ip: string): boolean {
+  const limit = RATE_LIMITS[category];
+  if (!limit) return false;
+
+  const key = `${category}:${ip}`;
+  const now = Date.now();
+  const entry = rateLimitStore.get(key);
+
+  if (!entry || now - entry.windowStart > limit.windowMs) {
+    rateLimitStore.set(key, { count: 1, windowStart: now });
+    return false;
+  }
+
+  entry.count++;
+  if (entry.count > limit.max) return true;
+  return false;
+}
+
+function getRateLimitCategory(pathname: string): string | null {
+  if (pathname === '/api/auth/callback/credentials') return 'login';
+  if (pathname.startsWith('/api/download/')) return 'download';
+  if (pathname === '/api/account') return 'account';
+  return null;
+}
+
+// Periodically clear stale entries to prevent unbounded memory growth.
+// Runs every 5 minutes; safe because Cloud Run is single-instance.
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    const now = Date.now();
+    const maxWindow = Math.max(...Object.values(RATE_LIMITS).map((l) => l.windowMs));
+    for (const [key, entry] of rateLimitStore) {
+      if (now - entry.windowStart > maxWindow) rateLimitStore.delete(key);
+    }
+  }, 5 * 60_000);
+}
+
 function isPublicRoute(pathname: string): boolean {
   // Auth.js own API routes
   if (pathname.startsWith('/api/auth/')) return true;
@@ -39,8 +97,30 @@ export default auth(async function proxy(req) {
   const { pathname } = req.nextUrl;
   const session = req.auth;
 
+  // ── Rate limiting ───────────────────────────────────────────────────────────
+  const rateLimitCategory = getRateLimitCategory(pathname);
+  if (rateLimitCategory) {
+    const ip = getClientIp(req);
+    if (isRateLimited(rateLimitCategory, ip)) {
+      return new NextResponse(
+        JSON.stringify({ error: 'Too many requests' }),
+        { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': '60' } },
+      );
+    }
+  }
+
+  // ── Security headers ────────────────────────────────────────────────────────
+  const securityHeaders = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  };
+
   if (isPublicRoute(pathname)) {
-    return NextResponse.next();
+    const res = NextResponse.next();
+    Object.entries(securityHeaders).forEach(([k, v]) => res.headers.set(k, v));
+    return res;
   }
 
   // Not authenticated — redirect to /login with callbackUrl
@@ -72,7 +152,9 @@ export default auth(async function proxy(req) {
     }
   }
 
-  return NextResponse.next();
+  const res = NextResponse.next();
+  Object.entries(securityHeaders).forEach(([k, v]) => res.headers.set(k, v));
+  return res;
 });
 
 export const config = {

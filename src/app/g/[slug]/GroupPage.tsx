@@ -27,6 +27,25 @@ export default function GroupPage({ group, slug }: GroupPageProps) {
     setSubmitted(true);
   }
 
+  async function handleDownload(slug: string, sha256: string, filename: string, token: string) {
+    // Send token in Authorization header to avoid URL query string exposure
+    // (browser history, server logs, Referer headers).
+    const res = await fetch(`/api/groups/${slug}/files/${sha256}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      setError('Download failed — check your token and try again.');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function formatUnix(unix: number | null): string {
     if (unix === null) return 'No expiry';
     return new Date(unix * 1000).toLocaleDateString(undefined, { dateStyle: 'medium' });
@@ -105,13 +124,12 @@ export default function GroupPage({ group, slug }: GroupPageProps) {
                         {formatBytes(file.size)} · {file.content_type}
                       </p>
                     </div>
-                    <a
-                      href={`/api/groups/${slug}/files/${file.sha256}?token=${encodeURIComponent(token)}`}
+                    <button
+                      onClick={() => handleDownload(slug, file.sha256, file.original_name, token)}
                       className="flex-shrink-0 rounded-lg bg-blue-600 text-white text-sm font-medium px-4 py-1.5 hover:bg-blue-700 transition-colors"
-                      download={file.original_name}
                     >
                       Download
-                    </a>
+                    </button>
                   </div>
                 ))}
               </div>
