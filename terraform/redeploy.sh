@@ -12,6 +12,7 @@ cd "$(dirname "$0")"
 source ./common.sh
 
 load_config
+check_gcloud_auth
 
 echo "==> Project : $PROJECT_ID"
 echo "==> Region  : $REGION"

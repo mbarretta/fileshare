@@ -22,6 +22,7 @@ for arg in "$@"; do
 done
 
 load_config
+check_gcloud_auth
 
 echo "==> Project : $PROJECT_ID"
 echo "==> Region  : $REGION"
