@@ -5,6 +5,44 @@
 
 Brushpass is a self-hosted secure file transfer tool. Authenticated users upload files to GCP Cloud Storage and receive a shareable URL plus a one-time-shown download token. Anyone with the URL and token can download the file — no account required. Files can have optional TTLs with active cleanup. An admin panel provides file management, expiration control, download metrics, and user management.
 
+## Chainguard security stack
+
+Brushpass uses Chainguard throughout the container and dependency supply chain.
+
+### Base images
+
+The Docker build uses two Chainguard Container images:
+
+```dockerfile
+FROM cgr.dev/barretta/node:25-dev AS builder   # build stage — includes gcc, make, python3 for native addons
+FROM cgr.dev/barretta/node:25-slim AS runner   # runtime stage — minimal, distroless-style
+```
+
+Both images are rebuilt nightly from source with zero known CVEs at release time and ship with Sigstore signatures and SBOMs. The multi-stage build means the final runtime image contains only the Node.js runtime and application files — no compiler toolchain, no package manager, no shell.
+
+### npm dependencies (Chainguard Libraries for JavaScript)
+
+> **Note:** The integration described here is planned — see [the spike research](.gsd/workflows/spikes/260408-4-research-how-we-could-use-chainguard-lib/RECOMMENDATION.md) for the implementation plan. The base images are already in use.
+
+All 9 production npm dependencies are available in the [Chainguard Libraries for JavaScript](https://edu.chainguard.dev/chainguard/libraries/javascript/overview/) registry at their exact pinned versions (verified against the `barretta` org registry):
+
+| Package | Version |
+|---|---|
+| `next` | 16.2.1 |
+| `react` / `react-dom` | 19.2.4 |
+| `better-sqlite3` | 12.8.0 |
+| `@google-cloud/storage` | 7.19.0 |
+| `next-auth` | 5.0.0-beta.30 |
+| `bcryptjs` | 3.0.3 |
+| `busboy` | 1.6.0 |
+| `@noble/hashes` | 2.0.1 |
+
+Chainguard Libraries rebuilds every package from its original source repository in a hardened SLSA L2 build environment rather than downloading pre-compiled artifacts from the public npm registry. Each package ships with Sigstore signatures and SLSA provenance attestations. This eliminates the class of supply-chain attacks where malware is injected into a registry artifact after the legitimate source code was written — [~99% of known malicious npm packages by that vector](https://www.chainguard.dev/unchained/mitigating-malware-in-the-npm-ecosystem-with-chainguard-libraries).
+
+Integration requires pointing npm at `libraries.cgr.dev/javascript/` via `.npmrc` with a pull token. See the [implementation plan](.gsd/workflows/spikes/260408-4-research-how-we-could-use-chainguard-lib/RECOMMENDATION.md) for the exact Dockerfile and `redeploy.sh` changes.
+
+---
+
 ## Contents
 
 - [Requirements](#requirements)
