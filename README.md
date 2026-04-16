@@ -22,7 +22,7 @@ Both images are rebuilt nightly from source with zero known CVEs at release time
 
 ### npm dependencies (Chainguard Libraries for JavaScript)
 
-All 9 production npm dependencies are available in the [Chainguard Libraries for JavaScript](https://edu.chainguard.dev/chainguard/libraries/javascript/overview/) registry at their exact pinned versions — verified against the `barretta` org registry using `chainctl auth token --audience=libraries.cgr.dev`:
+All 9 production npm dependencies are available in the [Chainguard Libraries for JavaScript](https://edu.chainguard.dev/chainguard/libraries/javascript/overview/) registry at their exact pinned versions:
 
 | Package | Version | In Chainguard registry |
 |---|---|---|
@@ -37,7 +37,7 @@ All 9 production npm dependencies are available in the [Chainguard Libraries for
 
 Chainguard Libraries rebuilds every package from its original source repository in a hardened SLSA L2 build environment rather than downloading pre-compiled artifacts from the public npm registry. Each package ships with Sigstore signatures and SLSA provenance attestations. This eliminates the class of supply-chain attacks where malware is injected into a registry artifact after the legitimate source code was written — [~99% of known malicious npm packages by that vector](https://www.chainguard.dev/unchained/mitigating-malware-in-the-npm-ecosystem-with-chainguard-libraries).
 
-**Integration status:** The direct dependencies are all confirmed in the registry. Wiring the build to install from `libraries.cgr.dev/javascript/` requires a repository manager (Artifactory/Nexus) as a proxy to handle fallback for any pre-release transitive dependencies not yet indexed — without one, npm has no native fallback mechanism. See the [spike research](.gsd/workflows/spikes/260408-4-research-how-we-could-use-chainguard-lib/RECOMMENDATION.md) for full details. You can verify any installed package with `chainctl libraries verify $(npm config get cache)`.
+You can verify any installed package with `chainctl libraries verify $(npm config get cache)`.
 
 ---
 
